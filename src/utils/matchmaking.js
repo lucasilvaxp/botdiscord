@@ -27,4 +27,12 @@ function createTeams(players) {
     };
 }
 
-module.exports = { shuffle, createTeams };
+/**
+ * Gera um ID numérico aleatório de 6 dígitos.
+ * @returns {string}
+ */
+function generateMatchId() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+module.exports = { shuffle, createTeams, generateMatchId };
