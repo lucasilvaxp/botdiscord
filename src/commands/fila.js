@@ -13,13 +13,14 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle(`Fila Aberta [${mode}]`)
-            .setDescription('Clique nos botões abaixo para participar da fila.')
-            .setColor('#0099ff')
+            .setTitle(`🎮 Fila Aberta [${mode}] - RealTREM`)
+            .setDescription('Clique nos botões abaixo para participar da fila de matchmaking profissional.')
+            .setColor('#2b2d31')
             .addFields(
-                { name: 'Jogadores', value: 'Nenhum jogador na fila.', inline: false },
-                { name: 'Progresso', value: `0/${queueManager.modes[mode].playersNeeded}`, inline: true }
+                { name: '👥 Jogadores na Fila', value: 'Nenhum jogador na fila.', inline: false },
+                { name: '📊 Progresso', value: `0/${queueManager.modes[mode].playersNeeded}`, inline: true }
             )
+            .setFooter({ text: 'O sorteio iniciará automaticamente quando a fila estiver cheia.' })
             .setTimestamp();
 
         const row = new ActionRowBuilder()
