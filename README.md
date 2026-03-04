@@ -1,6 +1,6 @@
 # Bot de Matchmaking para Discord
 
-Este bot Discord, desenvolvido em Node.js com a biblioteca Discord.js v14, oferece um sistema completo de matchmaking para organizar partidas entre usuários. Ele inclui um sistema de filas interativo, sorteio de times, criação dinâmica de canais de voz e texto, movimentação automática de jogadores e um painel de controle para gerenciar a partida.
+Este bot Discord, desenvolvido em Node.js com a biblioteca Discord.js v14, oferece um sistema completo de matchmaking para organizar partidas entre usuários. Ele inclui um sistema de filas interativo, sorteio de times, criação dinâmica de canais de voz e texto, movimentação automática de jogadores e um painel de controle para gerenciar a partida. O sistema segue padrões profissionais com lógica de capitães e confirmação dupla de resultados.
 
 ## Funcionalidades
 
@@ -126,4 +126,4 @@ matchmaking-bot/
 
 ---
 
-Desenvolvido por **Lucas Ferreira**
+Desenvolvido por **Manus AI**

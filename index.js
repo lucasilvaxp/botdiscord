@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
 
 const client = new Client({
     intents: [
@@ -59,6 +60,15 @@ client.on(Events.MessageCreate, async message => {
 client.once(Events.ClientReady, c => {
     console.log(`Pronto! Logado como ${c.user.tag}`);
 });
+
+// Conexão com MongoDB
+if (process.env.MONGODB_URI) {
+    mongoose.connect(process.env.MONGODB_URI)
+        .then(() => console.log('Conectado ao MongoDB com sucesso!'))
+        .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
+} else {
+    console.warn('MONGODB_URI não encontrado no arquivo .env. A persistência de dados não funcionará.');
+}
 
 // Login do Bot
 if (process.env.DISCORD_TOKEN) {

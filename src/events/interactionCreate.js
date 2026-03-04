@@ -1,6 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, StringSelectMenuBuilder } = require('discord.js');
 const queueManager = require('../managers/queueManager');
 const { createTeams, generateMatchId } = require('../utils/matchmaking');
+const User = require('../database/models/User');
+const Match = require('../database/models/Match');
 
 module.exports = {
     name: 'interactionCreate',
@@ -24,10 +26,17 @@ module.exports = {
                 await updateQueueEmbed(message, queue);
             } 
             else if (customId.startsWith('cancel_queue_')) {
-                if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.reply({ content: 'Sem permissão.', ephemeral: true });
+                const queue = queueManager.getQueue(message.id);
+                const isOwner = queue && queue.ownerId === user.id;
+                const isStaff = interaction.member.roles.cache.some(role => ['Moderador', 'Staff'].includes(role.name)) || interaction.member.permissions.has(PermissionFlagsBits.ManageChannels);
+
+                if (!isOwner && !isStaff) {
+                    return interaction.reply({ content: 'Apenas o criador da fila ou membros da Staff podem cancelar esta fila.', ephemeral: true });
+                }
+
                 queueManager.deleteQueue(message.id);
                 await message.delete();
-                await interaction.reply({ content: 'Fila cancelada.', ephemeral: true });
+                await interaction.reply({ content: 'Fila cancelada com sucesso.', ephemeral: true });
             }
 
             // Lógica de Confirmação de Resultado
@@ -112,7 +121,8 @@ module.exports = {
             }
 
             if (customId === 'select_mvp') {
-                await interaction.reply({ content: `⭐ <@${user.id}> votou em <@${interaction.values[0]}> para MVP!`, ephemeral: false });
+                match.mvpId = interaction.values[0];
+                await interaction.reply({ content: `⭐ <@${user.id}> definiu <@${match.mvpId}> como o MVP da partida!`, ephemeral: false });
             }
         }
     }
@@ -172,7 +182,7 @@ async function startMatch(guild, message, queue) {
     const matchEmbed = new EmbedBuilder()
         .setTitle(`🎮 Partida Iniciada - ID #${matchId}`)
         .setColor('#2b2d31')
-        .setDescription(`Bem-vindos à partida. Utilize o menu abaixo para gerenciar o resultado.`)
+        .setDescription(`Bem-vindos à partida oficial. Utilize o menu abaixo para gerenciar o resultado.`)
         .addFields(
             { name: '🎙️ Canais de Voz', value: `<#${voice1.id}> | <#${voice2.id}>`, inline: false },
             { 
@@ -210,7 +220,54 @@ async function startMatch(guild, message, queue) {
 }
 
 async function endMatchSequence(guild, match, channel) {
-    await channel.send({ content: '🏁 **Partida Finalizada!** Obrigado por jogarem na **Peixaria**. Os canais serão deletados em 10 segundos.' });
+    // Salvar no Banco de Dados
+    try {
+        const winnerTeam = match.winnerPending?.winner;
+        const winners = winnerTeam === 'Time 1' ? match.team1 : (winnerTeam === 'Time 2' ? match.team2 : []);
+        const losers = winnerTeam === 'Time 1' ? match.team2 : (winnerTeam === 'Time 2' ? match.team1 : []);
+
+        // Atualizar Vencedores (+25 pontos)
+        for (const id of winners) {
+            await User.findOneAndUpdate(
+                { discordId: id },
+                { $inc: { points: 25, wins: 1, totalMatches: 1, streak: 1 } },
+                { upsert: true }
+            );
+        }
+
+        // Atualizar Perdedores (-15 pontos)
+        for (const id of losers) {
+            await User.findOneAndUpdate(
+                { discordId: id },
+                { $inc: { points: -15, losses: 1, totalMatches: 1 }, $set: { streak: 0 } },
+                { upsert: true }
+            );
+        }
+
+        // Salvar MVP (+10 pontos extras)
+        if (match.mvpId) {
+            await User.findOneAndUpdate(
+                { discordId: match.mvpId },
+                { $inc: { points: 10, mvps: 1 } },
+                { upsert: true }
+            );
+        }
+
+        // Registrar Partida
+        await Match.create({
+            matchId: match.matchId,
+            mode: match.mode,
+            team1: match.team1,
+            team2: match.team2,
+            winner: winnerTeam,
+            mvp: match.mvpId
+        });
+
+    } catch (err) {
+        console.error('Erro ao salvar estatísticas da partida:', err);
+    }
+
+    await channel.send({ content: '🏁 **Partida Finalizada!** Estatísticas salvas e pontos distribuídos. Os canais serão deletados em 10 segundos.' });
     
     queueManager.deleteMatch(channel.id);
 

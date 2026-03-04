@@ -13,8 +13,8 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle(`🎮 Fila Aberta [${mode}] - Familia Muniz`)
-            .setDescription('Clique nos botões abaixo para participar da fila de matchmaking profissional.')
+            .setTitle(`🎮 Fila Aberta [${mode}]`)
+            .setDescription('Clique nos botões abaixo para participar da fila de matchmaking.')
             .setColor('#2b2d31')
             .addFields(
                 { name: '👥 Jogadores na Fila', value: 'Nenhum jogador na fila.', inline: false },
@@ -43,5 +43,9 @@ module.exports = {
         
         // Registrar a fila no gerenciador
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
+        
+        // Adicionar ownerId à fila
+        const queue = queueManager.getQueue(sentMessage.id);
+        if (queue) queue.ownerId = message.author.id;
     }
 };
