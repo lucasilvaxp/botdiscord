@@ -13,7 +13,7 @@ module.exports = {
         }
 
         const embed = new EmbedBuilder()
-            .setTitle(`🎮 Fila Aberta [${mode}]`)
+            .setTitle(`🎮 Fila Aberta [${mode}] Familia Muniz`)
             .setDescription('Clique nos botões abaixo para participar da fila de matchmaking.')
             .setColor('#2b2d31')
             .addFields(
