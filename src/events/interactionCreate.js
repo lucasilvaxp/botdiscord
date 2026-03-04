@@ -172,7 +172,7 @@ async function startMatch(guild, message, queue) {
     const matchEmbed = new EmbedBuilder()
         .setTitle(`🎮 Partida Iniciada - ID #${matchId}`)
         .setColor('#2b2d31')
-        .setDescription(`Bem-vindos à partida oficial **RealTREM**. Utilize o menu abaixo para gerenciar o resultado.`)
+        .setDescription(`Bem-vindos à partida. Utilize o menu abaixo para gerenciar o resultado.`)
         .addFields(
             { name: '🎙️ Canais de Voz', value: `<#${voice1.id}> | <#${voice2.id}>`, inline: false },
             { 
@@ -210,7 +210,7 @@ async function startMatch(guild, message, queue) {
 }
 
 async function endMatchSequence(guild, match, channel) {
-    await channel.send({ content: '🏁 **Partida Finalizada!** Obrigado por jogarem na **RealTREM**. Os canais serão deletados em 10 segundos.' });
+    await channel.send({ content: '🏁 **Partida Finalizada!** Obrigado por jogarem na **Peixaria**. Os canais serão deletados em 10 segundos.' });
     
     queueManager.deleteMatch(channel.id);
 
