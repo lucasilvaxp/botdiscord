@@ -12,6 +12,31 @@ class QueueManager {
             '3v3': { playersNeeded: 6, label: '3v3' },
             '4v4': { playersNeeded: 8, label: '4v4' }
         };
+
+        // Armazena partidas ativas
+        // Estrutura: { matchId, mode, team1, team2, captain1, captain2, categoryId, textChannelId, voice1Id, voice2Id, winnerPending: { winner, proposerId } }
+        this.activeMatches = new Collection();
+    }
+
+    /**
+     * Registra uma partida ativa.
+     */
+    createMatch(matchData) {
+        this.activeMatches.set(matchData.textChannelId, matchData);
+    }
+
+    /**
+     * Retorna uma partida ativa pelo ID do canal de texto.
+     */
+    getMatch(channelId) {
+        return this.activeMatches.get(channelId);
+    }
+
+    /**
+     * Remove uma partida ativa.
+     */
+    deleteMatch(channelId) {
+        this.activeMatches.delete(channelId);
     }
 
     /**
