@@ -8,6 +8,7 @@ class QueueManager {
         
         // Configurações de modos
         this.modes = {
+            '1v1': { playersNeeded: 2, label: '1v1' },
             '2v2': { playersNeeded: 4, label: '2v2' },
             '3v3': { playersNeeded: 6, label: '3v3' },
             '4v4': { playersNeeded: 8, label: '4v4' }
