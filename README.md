@@ -126,4 +126,4 @@ matchmaking-bot/
 
 ---
 
-Desenvolvido por **Lucas Ferreira **
+Desenvolvido por **Lucas Ferreira**
