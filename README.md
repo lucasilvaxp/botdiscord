@@ -126,4 +126,4 @@ matchmaking-bot/
 
 ---
 
-Desenvolvido por **Manus AI**
+**Lucas Ferreira Da Silva**
