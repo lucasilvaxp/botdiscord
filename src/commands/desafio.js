@@ -16,51 +16,50 @@ module.exports = {
         const teamSize = maxPlayers / 2;
 
         const embed = new EmbedBuilder()
-            .setTitle(`Desafio Aberto [${mode}]`)
-            .setDescription('Escolha seu time para participar do desafio.')
+            .setTitle(`${mode} | Fila Desafio Criada!`)
+            .setDescription('Seja Bem Vindo(a) a fila **Desafio**! Aqui todos os times são formados. Caso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.')
             .setColor('#2b2d31')
             .addFields(
-                { name: `🔵 Equipe 1 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
-                { name: `🔴 Equipe 2 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
-                { name: '👑 Criador', value: `<@${message.author.id}>`, inline: false }
+                { name: `Equipe 1 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
+                { name: `Equipe 2 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true }
             )
-            .setFooter({ text: 'Aguardando jogadores...' })
-            .setTimestamp();
+            .setThumbnail('https://i.imgur.com/8N8N8N8.gif') // Placeholder para o GIF lateral
+            .setFooter({ text: `Aguardando jogadores... • Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` });
 
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
                     .setCustomId(`challenge_join_1_${mode}`)
-                    .setLabel('Equipe 1')
-                    .setEmoji('🔵')
-                    .setStyle(ButtonStyle.Primary),
+                    .setLabel(`Entrar [0/${teamSize}]`)
+                    .setEmoji('✅')
+                    .setStyle(ButtonStyle.Success),
                 new ButtonBuilder()
                     .setCustomId(`challenge_join_2_${mode}`)
-                    .setLabel('Equipe 2')
-                    .setEmoji('🔴')
+                    .setLabel(`Entrar [0/${teamSize}]`)
+                    .setEmoji('✅')
                     .setStyle(ButtonStyle.Danger),
                 new ButtonBuilder()
-                    .setCustomId(`challenge_leave_${mode}`)
-                    .setLabel('Sair')
-                    .setEmoji('❌')
+                    .setCustomId(`challenge_actions_${mode}`)
+                    .setLabel('Bloquear')
+                    .setEmoji('🔒')
                     .setStyle(ButtonStyle.Secondary)
             );
 
         const menuRow = new ActionRowBuilder()
             .addComponents(
                 new StringSelectMenuBuilder()
-                    .setCustomId(`challenge_actions_${mode}`)
-                    .setPlaceholder('⚙️ Ações do Criador...')
+                    .setCustomId(`challenge_menu_${mode}`)
+                    .setPlaceholder('Selecione uma ação...')
                     .addOptions([
                         { label: 'Iniciar Partida', value: 'start', emoji: '▶️' },
-                        { label: 'Expulsar Jogador', value: 'kick', emoji: '👢' },
-                        { label: 'Encerrar Desafio', value: 'cancel', emoji: '🏁' }
+                        { label: 'Sair', value: 'leave', emoji: '❌' },
+                        { label: 'Expulsar', value: 'kick', emoji: '👢' },
+                        { label: 'Encerrar', value: 'cancel', emoji: '🏁' }
                     ])
             );
 
-        const sentMessage = await message.channel.send({ embeds: [embed], components: [row, menuRow] });
+        const sentMessage = await message.channel.send({ embeds: [embed], components: [menuRow, row] });
         
-        // Registrar o desafio no gerenciador
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
         const challenge = queueManager.getQueue(sentMessage.id);
         if (challenge) {
