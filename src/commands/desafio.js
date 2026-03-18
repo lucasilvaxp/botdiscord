@@ -56,7 +56,8 @@ module.exports = {
                     ])
             );
 
-        const sentMessage = await message.channel.send({ embeds: [embed], components: [row, menuRow] });
+        // Menu ACIMA dos botões
+        const sentMessage = await message.channel.send({ embeds: [embed], components: [menuRow, row] });
         
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
         const challenge = queueManager.getQueue(sentMessage.id);

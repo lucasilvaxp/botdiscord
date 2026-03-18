@@ -5,14 +5,12 @@ const matchmaking = require('../utils/matchmaking');
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
-        // Ignora se não for botão ou menu
         if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
         const [type, action, mode] = interaction.customId.split('_');
         const queue = queueManager.getQueue(interaction.message.id);
 
         if (!queue) {
-            // Tenta deletar a mensagem se a fila não existir mais para evitar botões órfãos
             try { await interaction.message.delete(); } catch (e) {}
             return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true }).catch(() => null);
         }
@@ -20,23 +18,20 @@ module.exports = {
         const isOwner = interaction.user.id === queue.ownerId;
         const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
 
-        // Tratamento de Botões
         if (interaction.isButton()) {
-            // Ações que exigem permissão
             if (action === 'start' || action === 'actions') {
                 if (!isOwner && !isAdmin) {
                     return interaction.reply({ content: 'Você não tem permissão para gerenciar esta fila.', ephemeral: true });
                 }
             }
 
-            // Lógica para FILA NORMAL
             if (type === 'queue') {
                 if (action === 'join') {
                     if (queue.players.includes(interaction.user.id)) {
                         return interaction.reply({ content: 'Você já está na fila!', ephemeral: true });
                     }
                     queue.players.push(interaction.user.id);
-                    await interaction.deferUpdate(); // Evita erro de interação
+                    await interaction.deferUpdate();
                     return this.updateQueueEmbed(interaction, queue);
                 }
 
@@ -58,12 +53,10 @@ module.exports = {
                 }
             }
 
-            // Lógica para DESAFIO
             if (type === 'challenge') {
                 if (action === 'join') {
                     const teamNum = parseInt(mode);
                     const targetTeam = teamNum === 1 ? queue.team1 : queue.team2;
-                    const otherTeam = teamNum === 1 ? queue.team2 : queue.team1;
 
                     if (targetTeam.includes(interaction.user.id)) {
                         return interaction.reply({ content: 'Você já está nesta equipe!', ephemeral: true });
@@ -73,7 +66,6 @@ module.exports = {
                         return interaction.reply({ content: 'Este time já está cheio!', ephemeral: true });
                     }
 
-                    // Remove do outro time se estiver lá
                     queue.team1 = queue.team1.filter(id => id !== interaction.user.id);
                     queue.team2 = queue.team2.filter(id => id !== interaction.user.id);
                     
@@ -94,7 +86,6 @@ module.exports = {
             }
         }
 
-        // Tratamento de Menus
         if (interaction.isStringSelectMenu()) {
             const value = interaction.values[0];
 
@@ -138,19 +129,27 @@ module.exports = {
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
         const currentPlayers = queue.players.length;
         const maxPlayers = queue.maxPlayers;
+        const halfMax = maxPlayers / 2;
 
-        let list = '';
-        const totalToShow = Math.max(currentPlayers, maxPlayers);
-        for (let i = 0; i < totalToShow; i++) {
-            if (i < currentPlayers) {
-                list += `🔴 <@${queue.players[i]}>\n`;
-            } else {
-                list += `🟢 Livre\n`;
+        const generateList = (start, end) => {
+            let list = '';
+            for (let i = start; i < end; i++) {
+                if (i < currentPlayers) {
+                    list += `🔴 <@${queue.players[i]}>\n`;
+                } else {
+                    list += `🟢 Livre\n`;
+                }
             }
-        }
+            return list || '\u200b';
+        };
+
+        // Se houver mais jogadores que o limite, expandimos as colunas
+        const totalToShow = Math.max(currentPlayers, maxPlayers);
+        const currentHalf = Math.ceil(totalToShow / 2);
 
         embed.setFields(
-            { name: `👥 Participantes (${currentPlayers})`, value: list || 'Nenhum participante' },
+            { name: `Participantes (${currentPlayers}/${maxPlayers})`, value: generateList(0, currentHalf), inline: true },
+            { name: `\u200b`, value: generateList(currentHalf, totalToShow), inline: true },
             { name: '👑 Criador', value: `<@${queue.ownerId}>`, inline: true },
             { name: '🎮 Modo', value: `\`${queue.mode}\``, inline: true }
         );
@@ -175,12 +174,11 @@ module.exports = {
             { name: `Equipe 2 (${queue.team2.length}/${teamSize})`, value: formatTeam(queue.team2), inline: true }
         );
 
-        // Atualiza labels dos botões se necessário
-        const row = ActionRowBuilder.from(interaction.message.components[0]);
+        const row = ActionRowBuilder.from(interaction.message.components[1]);
         row.components[0].setLabel(`Entrar [${queue.team1.length}/${teamSize}]`);
         row.components[1].setLabel(`Entrar [${queue.team2.length}/${teamSize}]`);
 
-        await interaction.message.edit({ embeds: [embed], components: [row, interaction.message.components[1]] }).catch(() => null);
+        await interaction.message.edit({ embeds: [embed], components: [interaction.message.components[0], row] }).catch(() => null);
     },
 
     async startMatch(interaction, queue, isChallenge = false) {
@@ -190,7 +188,6 @@ module.exports = {
             team1 = [...queue.team1];
             team2 = [...queue.team2];
         } else {
-            // Sorteio com Reserva
             const shuffled = matchmaking.fisherYates(queue.players);
             const activePlayers = shuffled.slice(0, queue.maxPlayers);
             reserves = shuffled.slice(queue.maxPlayers);
@@ -232,8 +229,6 @@ module.exports = {
 
             if (reserves.length > 0) {
                 matchEmbed.addFields({ name: '⏳ Reservas', value: reserves.map(id => `<@${id}>`).join(', ') });
-                
-                // Notifica os reservas no canal original
                 await interaction.channel.send({ 
                     content: `A partida **${matchId}** começou! Os seguintes jogadores ficaram na reserva para a próxima: ${reserves.map(id => `<@${id}>`).join(', ')}` 
                 });
@@ -246,7 +241,7 @@ module.exports = {
             
         } catch (error) {
             console.error('Erro ao criar partida:', error);
-            return interaction.followUp({ content: 'Ocorreu um erro ao criar os canais da partida. Verifique minhas permissões.', ephemeral: true });
+            return interaction.followUp({ content: 'Ocorreu um erro ao criar os canais da partida.', ephemeral: true });
         }
     }
 };

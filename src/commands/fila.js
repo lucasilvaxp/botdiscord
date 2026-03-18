@@ -13,13 +13,15 @@ module.exports = {
         }
 
         const maxPlayers = parseInt(mode[0]) * 2;
+        const halfMax = maxPlayers / 2;
         
         const embed = new EmbedBuilder()
             .setTitle(`Fila Aberta [${mode}]`)
             .setDescription('Clique nos botões abaixo para participar da fila.')
             .setColor('#2b2d31')
             .addFields(
-                { name: `👥 Participantes (0)`, value: this.generateParticipantList(0, maxPlayers, []) },
+                { name: `Participantes (0/${maxPlayers})`, value: '🟢 Livre\n'.repeat(halfMax), inline: true },
+                { name: `\u200b`, value: '🟢 Livre\n'.repeat(halfMax), inline: true },
                 { name: '👑 Criador', value: `<@${message.author.id}>`, inline: true },
                 { name: '🎮 Modo', value: `\`${mode}\``, inline: true }
             )
@@ -53,7 +55,8 @@ module.exports = {
                     ])
             );
 
-        const sentMessage = await message.channel.send({ embeds: [embed], components: [row, menuRow] });
+        // Menu ACIMA dos botões
+        const sentMessage = await message.channel.send({ embeds: [embed], components: [menuRow, row] });
         
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
         const queue = queueManager.getQueue(sentMessage.id);
@@ -62,19 +65,5 @@ module.exports = {
             queue.maxPlayers = maxPlayers;
             queue.isChallenge = false;
         }
-    },
-
-    generateParticipantList(current, max, players) {
-        let list = '';
-        // Mostra todos os jogadores atuais, mesmo que ultrapasse o max
-        const totalToShow = Math.max(current, max);
-        for (let i = 0; i < totalToShow; i++) {
-            if (i < current) {
-                list += `🔴 <@${players[i]}>\n`;
-            } else {
-                list += `🟢 Livre\n`;
-            }
-        }
-        return list || 'Nenhum participante';
     }
 };
