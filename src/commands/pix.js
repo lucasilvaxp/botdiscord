@@ -1,54 +1,41 @@
-const QRCode = require('qrcode');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
+const Pix = require('../utils/pix');
 
-class Pix {
-    constructor(key, receiver, city, value = 0) {
-        this.key = key;
-        this.receiver = receiver;
-        this.city = city;
-        this.value = value;
-    }
+module.exports = {
+    name: 'pix',
+    description: 'Gera um QR Code PIX válido',
+    async execute(message, args) {
+        const key = args[0];
+        const value = parseFloat(args[1]) || 0;
 
-    static crc16(data) {
-        let crc = 0xFFFF;
-        for (let i = 0; i < data.length; i++) {
-            crc ^= data.charCodeAt(i) << 8;
-            for (let j = 0; j < 8; j++) {
-                if (crc & 0x8000) {
-                    crc = (crc << 1) ^ 0x1021;
-                } else {
-                    crc <<= 1;
-                }
-                crc &= 0xFFFF;
-            }
+        if (!key) {
+            return message.reply('Por favor, forneça uma chave PIX: !pix <chave> [valor]');
         }
-        return crc.toString(16).toUpperCase().padStart(4, '0');
+
+        try {
+            const pix = new Pix(key, 'Beneficiário', 'Cidade', value);
+            const { payload, qrCodeBase64 } = await pix.generateQRCode();
+
+            const buffer = Buffer.from(qrCodeBase64.split(',')[1], 'base64');
+            const attachment = new AttachmentBuilder(buffer, { name: 'pix-qrcode.png' });
+
+            const embed = new EmbedBuilder()
+                .setTitle('Pagamento via PIX')
+                .setDescription('Escaneie o QR Code abaixo ou utilize a chave Copia e Cola.')
+                .setColor('#2b2d31')
+                .addFields(
+                    { name: '🔑 Chave PIX', value: `\`${key}\``, inline: true },
+                    { name: '💰 Valor', value: `\`R$ ${value.toFixed(2)}\``, inline: true },
+                    { name: '📋 Copia e Cola', value: `\`\`\`${payload}\`\`\`` }
+                )
+                .setImage('attachment://pix-qrcode.png')
+                .setFooter({ text: 'Pagamento seguro via Banco Central' })
+                .setTimestamp();
+
+            await message.channel.send({ embeds: [embed], files: [attachment] });
+        } catch (err) {
+            console.error('Erro ao gerar PIX:', err);
+            message.reply('Houve um erro ao gerar o PIX.');
+        }
     }
-
-    generatePayload() {
-        const formatField = (id, value) => id + value.length.toString().padStart(2, '0') + value;
-
-        let payload = '';
-        payload += formatField('00', '01'); // Payload Format Indicator
-        payload += formatField('26', formatField('00', 'br.gov.bcb.pix') + formatField('01', this.key)); // Merchant Account Information
-        payload += formatField('52', '0000'); // Merchant Category Code
-        payload += formatField('53', '986'); // Transaction Currency (BRL)
-        if (this.value > 0) payload += formatField('54', this.value.toFixed(2)); // Transaction Amount
-        payload += formatField('58', 'BR'); // Country Code
-        payload += formatField('59', this.receiver.substring(0, 25)); // Merchant Name
-        payload += formatField('60', this.city.substring(0, 15)); // Merchant City
-        payload += formatField('62', formatField('05', '***')); // Additional Data Field Template
-
-        payload += '6304'; // CRC16 Identifier
-        payload += Pix.crc16(payload);
-
-        return payload;
-    }
-
-    async generateQRCode() {
-        const payload = this.generatePayload();
-        const qrCodeBase64 = await QRCode.toDataURL(payload);
-        return { payload, qrCodeBase64 };
-    }
-}
-
-module.exports = Pix;
+};
