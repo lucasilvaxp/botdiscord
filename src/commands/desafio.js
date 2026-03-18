@@ -23,7 +23,6 @@ module.exports = {
                 { name: `Equipe 1 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
                 { name: `Equipe 2 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true }
             )
-            .setThumbnail('https://i.imgur.com/8N8N8N8.gif') // Placeholder para o GIF lateral
             .setFooter({ text: `Aguardando jogadores... • Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` });
 
         const row = new ActionRowBuilder()
@@ -39,9 +38,9 @@ module.exports = {
                     .setEmoji('✅')
                     .setStyle(ButtonStyle.Danger),
                 new ButtonBuilder()
-                    .setCustomId(`challenge_actions_${mode}`)
-                    .setLabel('Bloquear')
-                    .setEmoji('🔒')
+                    .setCustomId(`challenge_leave_${mode}`)
+                    .setLabel('Sair')
+                    .setEmoji('❌')
                     .setStyle(ButtonStyle.Secondary)
             );
 
@@ -49,16 +48,15 @@ module.exports = {
             .addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId(`challenge_menu_${mode}`)
-                    .setPlaceholder('Selecione uma ação...')
+                    .setPlaceholder('Opções do Desafio')
                     .addOptions([
                         { label: 'Iniciar Partida', value: 'start', emoji: '▶️' },
-                        { label: 'Sair', value: 'leave', emoji: '❌' },
                         { label: 'Expulsar', value: 'kick', emoji: '👢' },
                         { label: 'Encerrar', value: 'cancel', emoji: '🏁' }
                     ])
             );
 
-        const sentMessage = await message.channel.send({ embeds: [embed], components: [menuRow, row] });
+        const sentMessage = await message.channel.send({ embeds: [embed], components: [row, menuRow] });
         
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
         const challenge = queueManager.getQueue(sentMessage.id);

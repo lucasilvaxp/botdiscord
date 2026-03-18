@@ -1,14 +1,14 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const queueManager = require('../managers/queueManager');
 
 module.exports = {
     name: 'fila',
     description: 'Abre uma fila de Sorteado',
     async execute(message, args) {
-        const mode = args[0];
+        const mode = args[0] || '4v4';
         const validModes = ['2v2', '3v3', '4v4'];
 
-        if (!mode || !validModes.includes(mode)) {
+        if (!validModes.includes(mode)) {
             return message.reply('Por favor, especifique um modo válido: !fila 2v2, !fila 3v3 ou !fila 4v4.');
         }
 
@@ -38,29 +38,40 @@ module.exports = {
                 new ButtonBuilder()
                     .setCustomId(`queue_start_${mode}`)
                     .setLabel('Iniciar Partida')
-                    .setStyle(ButtonStyle.Primary),
-                new ButtonBuilder()
-                    .setCustomId(`queue_actions_${mode}`)
-                    .setEmoji('⚙️')
-                    .setStyle(ButtonStyle.Secondary)
+                    .setStyle(ButtonStyle.Primary)
             );
 
-        const sentMessage = await message.channel.send({ embeds: [embed], components: [row] });
+        const menuRow = new ActionRowBuilder()
+            .addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId(`queue_menu_${mode}`)
+                    .setPlaceholder('Opções da Fila')
+                    .addOptions([
+                        { label: 'Configurações', value: 'settings', emoji: '⚙️' },
+                        { label: 'Limpar Fila', value: 'clear', emoji: '🧹' },
+                        { label: 'Fechar Fila', value: 'close', emoji: '🔒' }
+                    ])
+            );
+
+        const sentMessage = await message.channel.send({ embeds: [embed], components: [row, menuRow] });
         
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
         const queue = queueManager.getQueue(sentMessage.id);
         if (queue) {
             queue.ownerId = message.author.id;
             queue.maxPlayers = maxPlayers;
+            queue.isChallenge = false;
         }
     },
 
     generateParticipantList(current, max, players) {
         let list = '';
-        for (let i = 0; i < Math.max(current, max); i++) {
+        // Mostra todos os jogadores atuais, mesmo que ultrapasse o max
+        const totalToShow = Math.max(current, max);
+        for (let i = 0; i < totalToShow; i++) {
             if (i < current) {
                 list += `🔴 <@${players[i]}>\n`;
-            } else if (i < max) {
+            } else {
                 list += `🟢 Livre\n`;
             }
         }
