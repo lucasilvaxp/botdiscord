@@ -1,292 +1,234 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, StringSelectMenuBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits, AttachmentBuilder } = require('discord.js');
 const queueManager = require('../managers/queueManager');
-const { createTeams, generateMatchId } = require('../utils/matchmaking');
+const matchmaking = require('../utils/matchmaking');
+const Pix = require('../utils/pix');
 const User = require('../database/models/User');
 const Match = require('../database/models/Match');
 
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction) {
-        const { customId, user, message, guild, channel } = interaction;
-
         if (interaction.isButton()) {
-            // Lógica de Fila (Join/Leave/Cancel)
-            if (customId.startsWith('join_queue_')) {
-                const queue = queueManager.getQueue(message.id);
-                if (!queue) return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true });
-                if (!queueManager.addPlayer(message.id, user.id)) return interaction.reply({ content: 'Você já está nesta fila!', ephemeral: true });
-                await interaction.reply({ content: 'Você entrou na fila!', ephemeral: true });
-                await updateQueueEmbed(message, queue);
-                if (queueManager.isFull(message.id)) await startMatch(guild, message, queue);
-            } 
-            else if (customId.startsWith('leave_queue_')) {
-                const queue = queueManager.getQueue(message.id);
-                if (!queue || !queueManager.removePlayer(message.id, user.id)) return interaction.reply({ content: 'Você não está nesta fila!', ephemeral: true });
-                await interaction.reply({ content: 'Você saiu da fila!', ephemeral: true });
-                await updateQueueEmbed(message, queue);
-            } 
-            else if (customId.startsWith('cancel_queue_')) {
-                const queue = queueManager.getQueue(message.id);
-                const isOwner = queue && queue.ownerId === user.id;
-                const isStaff = interaction.member.roles.cache.some(role => ['Moderador', 'Staff'].includes(role.name)) || interaction.member.permissions.has(PermissionFlagsBits.ManageChannels);
+            const [type, action, mode] = interaction.customId.split('_');
+            const queue = queueManager.getQueue(interaction.message.id);
 
-                if (!isOwner && !isStaff) {
-                    return interaction.reply({ content: 'Apenas o criador da fila ou membros da Staff podem cancelar esta fila.', ephemeral: true });
+            if (!queue) return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true });
+
+            // Verificação de Permissão para Iniciar/Ações
+            const isOwner = interaction.user.id === queue.ownerId;
+            const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
+
+            if (action === 'start' || action === 'actions') {
+                if (!isOwner && !isAdmin) {
+                    return interaction.reply({ content: 'Você não tem permissão para gerenciar esta fila.', ephemeral: true });
                 }
-
-                queueManager.deleteQueue(message.id);
-                await message.delete();
-                await interaction.reply({ content: 'Fila cancelada com sucesso.', ephemeral: true });
             }
 
-            // Lógica de Confirmação de Resultado
-            const match = queueManager.getMatch(channel.id);
-            if (match) {
-                const isCaptain = user.id === match.captain1 || user.id === match.captain2;
-                const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-                
-                if (!isCaptain && !isAdmin) return interaction.reply({ content: 'Apenas os capitães desta partida podem realizar esta ação.', ephemeral: true });
+            if (type === 'queue') {
+                if (action === 'join') {
+                    if (queue.players.includes(interaction.user.id)) {
+                        return interaction.reply({ content: 'Você já está na fila!', ephemeral: true });
+                    }
+                    queue.players.push(interaction.user.id);
+                    await this.updateQueueEmbed(interaction, queue);
+                    return interaction.reply({ content: 'Você entrou na fila!', ephemeral: true });
+                }
 
-                if (customId === 'confirm_result') {
-                    if (user.id === match.winnerPending?.proposerId) return interaction.reply({ content: 'Aguardando confirmação do capitão adversário.', ephemeral: true });
-                    
-                    await interaction.reply({ content: `✅ Resultado confirmado por <@${user.id}>. Encerrando partida...` });
-                    await endMatchSequence(guild, match, channel);
-                } 
-                else if (customId === 'contest_result') {
-                    match.winnerPending = null;
-                    await interaction.reply({ content: `⚠️ O resultado foi contestado por <@${user.id}>. Por favor, entrem em um acordo ou chamem um moderador.` });
-                    // Opcional: Notificar moderadores
+                if (action === 'leave') {
+                    if (!queue.players.includes(interaction.user.id)) {
+                        return interaction.reply({ content: 'Você não está na fila!', ephemeral: true });
+                    }
+                    queue.players = queue.players.filter(id => id !== interaction.user.id);
+                    await this.updateQueueEmbed(interaction, queue);
+                    return interaction.reply({ content: 'Você saiu da fila!', ephemeral: true });
+                }
+
+                if (action === 'start') {
+                    if (queue.players.length < queue.maxPlayers) {
+                        return interaction.reply({ content: `A fila precisa de pelo menos ${queue.maxPlayers} jogadores para iniciar.`, ephemeral: true });
+                    }
+                    await this.startMatch(interaction, queue);
+                }
+            }
+
+            if (type === 'challenge') {
+                const teamNum = parseInt(mode); // No caso de challenge_join_1_4v4, mode é o número do time
+                const realMode = interaction.customId.split('_')[3];
+
+                if (action === 'join') {
+                    // Remover de outros times se já estiver
+                    queue.team1 = queue.team1.filter(id => id !== interaction.user.id);
+                    queue.team2 = queue.team2.filter(id => id !== interaction.user.id);
+
+                    const targetTeam = teamNum === 1 ? queue.team1 : queue.team2;
+                    if (targetTeam.length >= queue.teamSize) {
+                        return interaction.reply({ content: 'Este time já está cheio!', ephemeral: true });
+                    }
+
+                    targetTeam.push(interaction.user.id);
+                    await this.updateChallengeEmbed(interaction, queue);
+                    return interaction.reply({ content: `Você entrou na Equipe ${teamNum}!`, ephemeral: true });
+                }
+
+                if (action === 'leave') {
+                    queue.team1 = queue.team1.filter(id => id !== interaction.user.id);
+                    queue.team2 = queue.team2.filter(id => id !== interaction.user.id);
+                    await this.updateChallengeEmbed(interaction, queue);
+                    return interaction.reply({ content: 'Você saiu do desafio!', ephemeral: true });
                 }
             }
         }
 
         if (interaction.isStringSelectMenu()) {
-            const match = queueManager.getMatch(channel.id);
-            if (!match) return;
+            const [type, action, mode] = interaction.customId.split('_');
+            const queue = queueManager.getQueue(interaction.message.id);
+            if (!queue) return interaction.reply({ content: 'Fila não encontrada.', ephemeral: true });
 
-            const isCaptain = user.id === match.captain1 || user.id === match.captain2;
+            const isOwner = interaction.user.id === queue.ownerId;
             const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
-            if (!isCaptain && !isAdmin) return interaction.reply({ content: 'Apenas os capitães desta partida podem realizar esta ação.', ephemeral: true });
 
-            if (customId === 'match_options') {
-                const action = interaction.values[0];
+            if (!isOwner && !isAdmin) {
+                return interaction.reply({ content: 'Apenas o criador pode realizar esta ação.', ephemeral: true });
+            }
 
-                if (action === 'set_winner') {
-                    const winnerMenu = new ActionRowBuilder().addComponents(
-                        new StringSelectMenuBuilder()
-                            .setCustomId('select_winner')
-                            .setPlaceholder('Quem venceu a partida?')
-                            .addOptions([
-                                { label: 'Time 1', value: 'Time 1', emoji: '1️⃣' },
-                                { label: 'Time 2', value: 'Time 2', emoji: '2️⃣' },
-                                { label: 'Empate', value: 'Empate', emoji: '🤝' }
-                            ])
-                    );
-                    await interaction.reply({ content: 'Selecione o vencedor:', components: [winnerMenu], ephemeral: true });
-                } 
-                else if (action === 'vote_mvp') {
-                    const allPlayers = [...match.team1, ...match.team2];
-                    const mvpMenu = new ActionRowBuilder().addComponents(
-                        new StringSelectMenuBuilder()
-                            .setCustomId('select_mvp')
-                            .setPlaceholder('Selecione o MVP')
-                            .addOptions(allPlayers.map(id => ({
-                                label: guild.members.cache.get(id)?.displayName || id,
-                                value: id
-                            })))
-                    );
-                    await interaction.reply({ content: 'Vote no MVP:', components: [mvpMenu], ephemeral: true });
-                } 
-                else if (action === 'end_match_now') {
-                    await interaction.reply({ content: 'Encerrando partida imediatamente...' });
-                    await endMatchSequence(guild, match, channel);
+            const value = interaction.values[0];
+
+            if (type === 'challenge' && action === 'actions') {
+                if (value === 'start') {
+                    if (queue.team1.length !== queue.teamSize || queue.team2.length !== queue.teamSize) {
+                        return interaction.reply({ content: 'Ambos os times precisam estar cheios para iniciar.', ephemeral: true });
+                    }
+                    await this.startMatch(interaction, queue, true);
+                } else if (value === 'cancel') {
+                    queueManager.deleteQueue(interaction.message.id);
+                    await interaction.message.delete();
+                    return interaction.reply({ content: 'Desafio cancelado.', ephemeral: true });
                 }
             }
+        }
+    },
 
-            if (customId === 'select_winner') {
-                const winner = interaction.values[0];
-                match.winnerPending = { winner, proposerId: user.id };
+    async updateQueueEmbed(interaction, queue) {
+        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+        const maxPlayers = queue.maxPlayers;
+        const currentPlayers = queue.players.length;
 
-                const confirmRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('confirm_result').setLabel('Confirmar Resultado').setStyle(ButtonStyle.Success),
-                    new ButtonBuilder().setCustomId('contest_result').setLabel('Contestar').setStyle(ButtonStyle.Danger)
-                );
-
-                await interaction.update({ content: `Vencedor selecionado: **${winner}**. Aguardando confirmação do capitão adversário...`, components: [] });
-                await channel.send({ 
-                    content: `📢 <@${user.id === match.captain1 ? match.captain2 : match.captain1}>, o capitão adversário definiu o resultado como: **${winner}**. Você confirma?`,
-                    components: [confirmRow]
-                });
+        let list = '';
+        for (let i = 0; i < Math.max(currentPlayers, maxPlayers); i++) {
+            if (i < currentPlayers) {
+                list += `🔴 <@${queue.players[i]}>\n`;
+            } else if (i < maxPlayers) {
+                list += `🟢 Livre\n`;
             }
+        }
 
-            if (customId === 'select_mvp') {
-                match.mvpId = interaction.values[0];
-                await interaction.reply({ content: `⭐ <@${user.id}> definiu <@${match.mvpId}> como o MVP da partida!`, ephemeral: false });
+        embed.setFields(
+            { name: `👥 Participantes (${currentPlayers})`, value: list || 'Nenhum participante' },
+            { name: '👑 Criador', value: `<@${queue.ownerId}>`, inline: true },
+            { name: '🎮 Modo', value: `\`${queue.mode}\``, inline: true }
+        );
+
+        await interaction.message.edit({ embeds: [embed] });
+    },
+
+    async updateChallengeEmbed(interaction, queue) {
+        const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+        const teamSize = queue.teamSize;
+
+        const formatTeam = (team) => {
+            let list = '';
+            for (let i = 0; i < teamSize; i++) {
+                list += team[i] ? `🔴 <@${team[i]}>\n` : `🟢 Livre\n`;
             }
+            return list;
+        };
+
+        embed.setFields(
+            { name: `🔵 Equipe 1 (${queue.team1.length}/${teamSize})`, value: formatTeam(queue.team1), inline: true },
+            { name: `🔴 Equipe 2 (${queue.team2.length}/${teamSize})`, value: formatTeam(queue.team2), inline: true },
+            { name: '👑 Criador', value: `<@${queue.ownerId}>`, inline: false }
+        );
+
+        await interaction.message.edit({ embeds: [embed] });
+    },
+
+    async startMatch(interaction, queue, isChallenge = false) {
+        let team1, team2, reserves = [];
+
+        if (isChallenge) {
+            team1 = queue.team1;
+            team2 = queue.team2;
+        } else {
+            const shuffled = matchmaking.fisherYates(queue.players);
+            team1 = shuffled.slice(0, queue.maxPlayers / 2);
+            team2 = shuffled.slice(queue.maxPlayers / 2, queue.maxPlayers);
+            reserves = shuffled.slice(queue.maxPlayers);
+        }
+
+        const matchId = matchmaking.generateMatchId();
+        const category = await interaction.guild.channels.create({
+            name: `PARTIDA ${matchId}`,
+            type: 4, // Category
+            permissionOverwrites: [
+                { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] }
+            ]
+        });
+
+        const textChannel = await interaction.guild.channels.create({
+            name: `partida-normal-${queue.mode}-${matchId}`,
+            parent: category.id,
+            permissionOverwrites: [
+                { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                ...[...team1, ...team2].map(id => ({ id, allow: [PermissionFlagsBits.ViewChannel] }))
+            ]
+        });
+
+        const voice1 = await interaction.guild.channels.create({ name: '🔊 Time 1', type: 2, parent: category.id });
+        const voice2 = await interaction.guild.channels.create({ name: '🔊 Time 2', type: 2, parent: category.id });
+
+        // Mover jogadores
+        for (const id of team1) {
+            const member = await interaction.guild.members.fetch(id).catch(() => null);
+            if (member?.voice.channel) await member.voice.setChannel(voice1).catch(() => null);
+        }
+        for (const id of team2) {
+            const member = await interaction.guild.members.fetch(id).catch(() => null);
+            if (member?.voice.channel) await member.voice.setChannel(voice2).catch(() => null);
+        }
+
+        const matchEmbed = new EmbedBuilder()
+            .setTitle(`Partida Iniciada - ID: ${matchId}`)
+            .setColor('#2b2d31')
+            .addFields(
+                { name: '🔵 Equipe 1', value: team1.map((id, i) => `${i === 0 ? '⭐' : '👤'} <@${id}>`).join('\n'), inline: true },
+                { name: '🔴 Equipe 2', value: team2.map((id, i) => `${i === 0 ? '⭐' : '👤'} <@${id}>`).join('\n'), inline: true },
+                { name: '🔊 Canais de Voz', value: `${voice1}\n${voice2}`, inline: false }
+            );
+
+        if (reserves.length > 0) {
+            matchEmbed.addFields({ name: '⏳ Reservas', value: reserves.map(id => `<@${id}>`).join(', '), inline: false });
+        }
+
+        const menu = new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`match_control_${matchId}`)
+                .setPlaceholder('Clique aqui para ver as opções dos capitães...')
+                .addOptions([
+                    { label: 'Definir Vencedor', value: 'winner', emoji: '🏆' },
+                    { label: 'Definir MVP', value: 'mvp', emoji: '⭐' },
+                    { label: 'Finalizar Partida', value: 'end', emoji: '🏁' }
+                ])
+        );
+
+        await textChannel.send({ content: `${team1.map(id => `<@${id}>`).join(' ')} ${team2.map(id => `<@${id}>`).join(' ')}`, embeds: [matchEmbed], components: [menu] });
+
+        queueManager.deleteQueue(interaction.message.id);
+        await interaction.message.delete().catch(() => null);
+        
+        if (interaction.deferred || interaction.replied) {
+            await interaction.followUp({ content: `Partida ${matchId} criada com sucesso!`, ephemeral: true });
+        } else {
+            await interaction.reply({ content: `Partida ${matchId} criada com sucesso!`, ephemeral: true });
         }
     }
 };
-
-async function updateQueueEmbed(message, queue) {
-    const playersList = Array.from(queue.players).map(id => `<@${id}>`).join('\n') || 'Nenhum jogador na fila.';
-    const embed = EmbedBuilder.from(message.embeds[0])
-        .setFields(
-            { name: 'Jogadores', value: playersList, inline: false },
-            { name: 'Progresso', value: `${queue.players.size}/${queue.config.playersNeeded}`, inline: true }
-        );
-    await message.edit({ embeds: [embed] });
-}
-
-async function startMatch(guild, message, queue) {
-    const players = Array.from(queue.players);
-    const { team1, team2 } = createTeams(players);
-    const matchId = generateMatchId();
-    
-    const captain1 = team1[0];
-    const captain2 = team2[0];
-
-    queueManager.deleteQueue(message.id);
-    await message.edit({ components: [] });
-
-    const category = await guild.channels.create({
-        name: `PARTIDAS ${queue.mode}`,
-        type: ChannelType.GuildCategory,
-        permissionOverwrites: [{ id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }],
-    });
-
-    const voice1 = await guild.channels.create({ name: '🔊 Time 1', type: ChannelType.GuildVoice, parent: category.id });
-    const voice2 = await guild.channels.create({ name: '🔊 Time 2', type: ChannelType.GuildVoice, parent: category.id });
-    const textChannel = await guild.channels.create({
-        name: `partida-normal-${queue.mode}-${matchId}`,
-        type: ChannelType.GuildText,
-        parent: category.id,
-    });
-
-    for (const id of players) {
-        await textChannel.permissionOverwrites.create(id, { ViewChannel: true, SendMessages: true });
-        await voice1.permissionOverwrites.create(id, { ViewChannel: true, Connect: true });
-        await voice2.permissionOverwrites.create(id, { ViewChannel: true, Connect: true });
-    }
-
-    // Mover jogadores
-    for (const id of team1) {
-        const m = await guild.members.fetch(id).catch(() => null);
-        if (m?.voice.channel) await m.voice.setChannel(voice1).catch(() => {});
-    }
-    for (const id of team2) {
-        const m = await guild.members.fetch(id).catch(() => null);
-        if (m?.voice.channel) await m.voice.setChannel(voice2).catch(() => {});
-    }
-
-    const matchEmbed = new EmbedBuilder()
-        .setTitle(`🎮 Partida Iniciada - ID #${matchId}`)
-        .setColor('#2b2d31')
-        .setDescription(`Bem-vindos à partida oficial. Utilize o menu abaixo para gerenciar o resultado.`)
-        .addFields(
-            { name: '🎙️ Canais de Voz', value: `<#${voice1.id}> | <#${voice2.id}>`, inline: false },
-            { 
-                name: '🔵 Equipe 1', 
-                value: team1.map((id, i) => `${i === 0 ? '⭐ **Capitão**' : '👤 Jogador'}: <@${id}>`).join('\n'), 
-                inline: true 
-            },
-            { 
-                name: '🔴 Equipe 2', 
-                value: team2.map((id, i) => `${i === 0 ? '⭐ **Capitão**' : '👤 Jogador'}: <@${id}>`).join('\n'), 
-                inline: true 
-            }
-        )
-        .setFooter({ text: 'Apenas os capitães podem interagir com o menu.' })
-        .setTimestamp();
-
-    const optionsMenu = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId('match_options')
-            .setPlaceholder('Clique aqui para ver as opções dos capitães...')
-            .addOptions([
-                { label: 'Definir Vencedor', value: 'set_winner', emoji: '🏆', description: 'Inicia o processo de confirmação de resultado.' },
-                { label: 'Definir MVP', value: 'vote_mvp', emoji: '⭐', description: 'Votação para o melhor jogador da partida.' },
-                { label: 'Finalizar Partida', value: 'end_match_now', emoji: '🏁', description: 'Encerra e deleta os canais imediatamente.' }
-            ])
-    );
-
-    await textChannel.send({ embeds: [matchEmbed], components: [optionsMenu] });
-
-    queueManager.createMatch({
-        matchId, mode: queue.mode, team1, team2, captain1, captain2,
-        categoryId: category.id, textChannelId: textChannel.id,
-        voice1Id: voice1.id, voice2Id: voice2.id
-    });
-}
-
-async function endMatchSequence(guild, match, channel) {
-    // Salvar no Banco de Dados
-    try {
-        const winnerTeam = match.winnerPending?.winner;
-        const winners = winnerTeam === 'Time 1' ? match.team1 : (winnerTeam === 'Time 2' ? match.team2 : []);
-        const losers = winnerTeam === 'Time 1' ? match.team2 : (winnerTeam === 'Time 2' ? match.team1 : []);
-
-        // Atualizar Vencedores (+25 pontos)
-        for (const id of winners) {
-            await User.findOneAndUpdate(
-                { discordId: id },
-                { $inc: { points: 25, wins: 1, totalMatches: 1, streak: 1 } },
-                { upsert: true }
-            );
-        }
-
-        // Atualizar Perdedores (-15 pontos)
-        for (const id of losers) {
-            await User.findOneAndUpdate(
-                { discordId: id },
-                { $inc: { points: -15, losses: 1, totalMatches: 1 }, $set: { streak: 0 } },
-                { upsert: true }
-            );
-        }
-
-        // Salvar MVP (+10 pontos extras)
-        if (match.mvpId) {
-            await User.findOneAndUpdate(
-                { discordId: match.mvpId },
-                { $inc: { points: 10, mvps: 1 } },
-                { upsert: true }
-            );
-        }
-
-        // Registrar Partida
-        await Match.create({
-            matchId: match.matchId,
-            mode: match.mode,
-            team1: match.team1,
-            team2: match.team2,
-            winner: winnerTeam,
-            mvp: match.mvpId
-        });
-
-    } catch (err) {
-        console.error('Erro ao salvar estatísticas da partida:', err);
-    }
-
-    await channel.send({ content: '🏁 **Partida Finalizada!** Estatísticas salvas e pontos distribuídos. Os canais serão deletados em 10 segundos.' });
-    
-    queueManager.deleteMatch(channel.id);
-
-    setTimeout(async () => {
-        try {
-            const category = guild.channels.cache.get(match.categoryId);
-            if (category) {
-                const children = category.children.cache;
-                for (const c of children.values()) {
-                    // Tentar mover jogadores de volta ou desconectar
-                    if (c.type === ChannelType.GuildVoice) {
-                        for (const m of c.members.values()) {
-                            await m.voice.disconnect().catch(() => {});
-                        }
-                    }
-                    await c.delete().catch(() => {});
-                }
-                await category.delete().catch(() => {});
-            }
-        } catch (e) { console.error('Erro ao limpar canais:', e); }
-    }, 10000);
-}
