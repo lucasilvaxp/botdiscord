@@ -6,10 +6,10 @@ module.exports = {
     description: 'Abre uma fila de Sorteado',
     async execute(message, args) {
         const mode = args[0] || '4v4';
-        const validModes = ['2v2', '3v3', '4v4'];
+        const validModes = ['1v1', '2v2', '3v3', '4v4'];
 
         if (!validModes.includes(mode)) {
-            return message.reply('Por favor, especifique um modo válido: !fila 2v2, !fila 3v3 ou !fila 4v4.');
+            return message.reply('Por favor, especifique um modo válido: !fila 1v1, !fila 2v2, !fila 3v3 ou !fila 4v4.');
         }
 
         const maxPlayers = parseInt(mode[0]) * 2;
