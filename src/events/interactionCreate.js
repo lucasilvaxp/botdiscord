@@ -7,7 +7,10 @@ module.exports = {
     async execute(interaction) {
         if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
-        const [type, action, mode] = interaction.customId.split('_');
+        const customIdParts = interaction.customId.split('_');
+        const type = customIdParts[0];
+        const action = customIdParts[1];
+        const mode = customIdParts[customIdParts.length - 1]; // O modo é sempre o último parte agora
         
         // Lógica para o menu de FINALIZAR PARTIDA (que ocorre no canal da partida)
         if (type === 'match') {
@@ -61,7 +64,6 @@ module.exports = {
         // Lógica de FILA/DESAFIO
         const queue = queueManager.getQueue(interaction.message.id);
         if (!queue) {
-            try { await interaction.message.delete(); } catch (e) {}
             return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true }).catch(() => null);
         }
 
@@ -100,7 +102,7 @@ module.exports = {
 
             if (type === 'challenge') {
                 if (action === 'join') {
-                    const teamNum = parseInt(mode);
+                    const teamNum = parseInt(customIdParts[2]); // challenge_join_1_mode -> index 2 é o time
                     const targetTeam = teamNum === 1 ? queue.team1 : queue.team2;
 
                     if (targetTeam.includes(interaction.user.id)) return interaction.reply({ content: 'Você já está nesta equipe!', ephemeral: true });
@@ -114,6 +116,9 @@ module.exports = {
                 }
 
                 if (action === 'leave') {
+                    if (!queue.team1.includes(interaction.user.id) && !queue.team2.includes(interaction.user.id)) {
+                        return interaction.reply({ content: 'Você não está em nenhuma equipe!', ephemeral: true });
+                    }
                     queue.team1 = queue.team1.filter(id => id !== interaction.user.id);
                     queue.team2 = queue.team2.filter(id => id !== interaction.user.id);
                     await interaction.deferUpdate();
@@ -207,13 +212,13 @@ module.exports = {
         const matchId = matchmaking.generateMatchId();
         try {
             const category = await interaction.guild.channels.create({
-                name: `PARTIDA ${matchId}`,
+                name: `PARTIDA ${queue.mode}`,
                 type: 4,
                 permissionOverwrites: [{ id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] }]
             });
 
             const textChannel = await interaction.guild.channels.create({
-                name: `partida-${queue.mode}-${matchId}`,
+                name: `partida-${queue.mode}`,
                 parent: category.id,
                 permissionOverwrites: [
                     { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -224,7 +229,6 @@ module.exports = {
             const v1 = await interaction.guild.channels.create({ name: '🔊 Time 1', type: 2, parent: category.id });
             const v2 = await interaction.guild.channels.create({ name: '🔊 Time 2', type: 2, parent: category.id });
 
-            // REDIRECIONAMENTO DE VOZ
             const movePlayers = async (players, channel) => {
                 for (const id of players) {
                     const member = await interaction.guild.members.fetch(id).catch(() => null);
@@ -237,7 +241,8 @@ module.exports = {
             await movePlayers(t2, v2);
 
             const matchEmbed = new EmbedBuilder()
-                .setTitle(`Partida Iniciada - ID: ${matchId}`)
+                .setTitle(`Partida Iniciada`)
+                .setDescription(`Modo: **${queue.mode}**`)
                 .setColor('#2b2d31')
                 .addFields(
                     { name: '🔵 Equipe 1', value: t1.map(id => `<@${id}>`).join('\n'), inline: true },
@@ -246,7 +251,7 @@ module.exports = {
 
             if (reserves.length > 0) {
                 matchEmbed.addFields({ name: '⏳ Reservas', value: reserves.map(id => `<@${id}>`).join(', ') });
-                await interaction.channel.send({ content: `Partida **${matchId}** iniciada! Reservas: ${reserves.map(id => `<@${id}>`).join(', ')}` });
+                await interaction.channel.send({ content: `Partida **${queue.mode}** iniciada! Reservas: ${reserves.map(id => `<@${id}>`).join(', ')}` });
             }
 
             const matchMenu = new ActionRowBuilder().addComponents(
@@ -262,7 +267,6 @@ module.exports = {
 
             await textChannel.send({ content: [...t1, ...t2].map(id => `<@${id}>`).join(' '), embeds: [matchEmbed], components: [matchMenu] });
             
-            // Registrar partida ativa no manager
             queueManager.createMatch({
                 matchId,
                 textChannelId: textChannel.id,
@@ -272,8 +276,20 @@ module.exports = {
                 categoryId: category.id
             });
 
+            // MANTER MENSAGEM E DESATIVAR COMPONENTES
+            const disabledEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                .setColor('#ff0000')
+                .setFooter({ text: 'Partida Iniciada • Mensagem Desativada' });
+
+            const disabledComponents = interaction.message.components.map(row => {
+                const newRow = ActionRowBuilder.from(row);
+                newRow.components.forEach(c => c.setDisabled(true));
+                return newRow;
+            });
+
+            await interaction.message.edit({ embeds: [disabledEmbed], components: disabledComponents }).catch(() => null);
             queueManager.deleteQueue(interaction.message.id);
-            await interaction.message.delete().catch(() => null);
+
         } catch (e) {
             console.error(e);
             return interaction.followUp({ content: 'Erro ao criar canais da partida.', ephemeral: true });
