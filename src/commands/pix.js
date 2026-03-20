@@ -32,16 +32,20 @@ module.exports = {
                 .setFooter({ text: 'Arena Matchmaking • Pagamento via Banco Central' })
                 .setTimestamp();
 
-            // Botão para facilitar visualização no celular
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setCustomId('copy_pix')
+                    .setCustomId('copy_pix_info')
                     .setLabel('Como pagar?')
                     .setEmoji('❓')
                     .setStyle(ButtonStyle.Secondary)
             );
 
-            await message.channel.send({ embeds: [embed], files: [attachment], components: [row] });
+            await message.channel.send({ 
+                embeds: [embed], 
+                files: [attachment], 
+                components: [row] 
+            });
+
         } catch (err) {
             console.error('Erro ao gerar PIX:', err);
             message.reply('⚠️ Houve um erro ao processar seu PIX. Verifique a chave e tente novamente.');
