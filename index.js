@@ -1,8 +1,9 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
+const queueManager = require('./src/managers/queueManager');
 
 const client = new Client({
     intents: [
@@ -39,9 +40,40 @@ for (const file of eventFiles) {
     }
 }
 
-// Handler de Comandos de Mensagem (Prefixo !)
+// Handler de Comandos e Detecção de ID/Senha
 client.on(Events.MessageCreate, async message => {
-    if (!message.content.startsWith('!') || message.author.bot) return;
+    if (message.author.bot) return;
+
+    // Detecção de ID e Senha em canais de partida
+    const match = queueManager.getMatch(message.channel.id);
+    if (match) {
+        // Regex para detectar padrão de ID e Senha (ex: 12345678 22)
+        const idPassRegex = /^(\d{5,10})\s+(\d{1,6})$/;
+        const matchResult = message.content.trim().match(idPassRegex);
+
+        if (matchResult) {
+            const id = matchResult[1];
+            const pass = matchResult[2];
+
+            const infoEmbed = new EmbedBuilder()
+                .setTitle('🎮 Sala Criada!')
+                .setDescription(`A sala foi criada com sucesso! Todos os jogadores foram mencionados abaixo. Vocês têm **3 minutos** para entrar na sala.`)
+                .addFields(
+                    { name: '🆔 ID da Sala', value: `\`${id}\``, inline: true },
+                    { name: '🔑 Senha', value: `\`${pass}\``, inline: true }
+                )
+                .setColor('#00ff00')
+                .setTimestamp();
+
+            await message.channel.send({ 
+                content: match.players.map(id => `<@${id}>`).join(' '), 
+                embeds: [infoEmbed] 
+            });
+            return;
+        }
+    }
+
+    if (!message.content.startsWith('!')) return;
 
     const args = message.content.slice(1).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
@@ -61,18 +93,12 @@ client.once(Events.ClientReady, c => {
     console.log(`Pronto! Logado como ${c.user.tag}`);
 });
 
-// Conexão com MongoDB
 if (process.env.MONGODB_URI) {
     mongoose.connect(process.env.MONGODB_URI)
         .then(() => console.log('Conectado ao MongoDB com sucesso!'))
         .catch(err => console.error('Erro ao conectar ao MongoDB:', err));
-} else {
-    console.warn('MONGODB_URI não encontrado no arquivo .env. A persistência de dados não funcionará.');
 }
 
-// Login do Bot
 if (process.env.DISCORD_TOKEN) {
     client.login(process.env.DISCORD_TOKEN);
-} else {
-    console.warn('DISCORD_TOKEN não encontrado no arquivo .env. O bot não poderá ser iniciado.');
 }

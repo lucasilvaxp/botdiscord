@@ -31,7 +31,7 @@ class QueueManager {
     }
 
     createMatch(matchData) {
-        // Armazenamos pelo ID do canal de texto para facilitar o acesso nas interações
+        // matchData deve conter: matchId, textChannelId, ownerId, team1, team2, categoryId, players
         this.activeMatches.set(matchData.textChannelId, matchData);
     }
 
