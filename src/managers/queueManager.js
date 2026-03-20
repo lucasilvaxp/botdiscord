@@ -31,7 +31,8 @@ class QueueManager {
     }
 
     createMatch(matchData) {
-        // matchData deve conter: matchId, textChannelId, ownerId, team1, team2, categoryId, players
+        // matchData: matchId, textChannelId, ownerId, team1, team2, categoryId, players
+        matchData.pendingId = null; // Para o detector de ID/Senha
         this.activeMatches.set(matchData.textChannelId, matchData);
     }
 

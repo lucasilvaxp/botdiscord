@@ -23,6 +23,43 @@ module.exports = {
                 return interaction.reply({ content: 'Apenas os capitães ou administradores podem usar este painel.', ephemeral: true });
             }
 
+            // Lógica de CONFIRMAÇÃO (Botões)
+            if (action === 'confirm' || action === 'refuse') {
+                const actionType = customIdParts[2]; // win, mvp, finish
+                const targetId = customIdParts[3]; // id do vencedor ou mvp
+                
+                if (action === 'refuse') {
+                    return interaction.update({ content: `❌ A ação foi recusada pelo capitão ${interaction.user}.`, components: [] });
+                }
+
+                // Confirmar
+                const otherCaptain = interaction.user.id === match.team1[0] ? match.team2[0] : match.team1[0];
+                if (interaction.user.id !== otherCaptain && !isAdmin) {
+                    return interaction.reply({ content: 'Aguardando a confirmação do outro capitão.', ephemeral: true });
+                }
+
+                if (actionType === 'win') {
+                    const winner = targetId === 'win1' ? 'Equipe 1' : 'Equipe 2';
+                    await interaction.update({ content: `✅ Vitória confirmada para **${winner}**!`, components: [] });
+                    await interaction.channel.send({ content: `🏆 **${winner}** foi declarado vencedor por consenso dos capitães!` });
+                } else if (actionType === 'mvp') {
+                    await interaction.update({ content: `✅ MVP confirmado: <@${targetId}>!`, components: [] });
+                    await interaction.channel.send({ content: `🌟 <@${targetId}> foi eleito o MVP da partida!` });
+                } else if (actionType === 'finish') {
+                    await interaction.update({ content: `✅ Partida finalizada por consenso. Canais serão deletados em 10 segundos.`, components: [] });
+                    setTimeout(async () => {
+                        const category = interaction.channel.parent;
+                        if (category) {
+                            for (const channel of category.children.cache.values()) await channel.delete().catch(() => null);
+                            await category.delete().catch(() => null);
+                        }
+                        queueManager.deleteMatch(interaction.channelId);
+                    }, 10000);
+                }
+                return;
+            }
+
+            // Lógica do MENU
             if (action === 'menu') {
                 const value = interaction.values[0];
                 
@@ -53,36 +90,53 @@ module.exports = {
                     return interaction.reply({ content: 'Selecione o MVP:', components: [mvpMenu], ephemeral: true });
                 }
 
-                if (value === 'cancel' || value === 'finish') {
-                    const confirmMsg = value === 'cancel' ? 'Partida cancelada.' : 'Partida finalizada.';
-                    await interaction.reply({ content: `${confirmMsg} Os canais serão deletados em 10 segundos.` });
-                    
-                    setTimeout(async () => {
-                        try {
+                if (value === 'finish') {
+                    if (isAdmin) {
+                        await interaction.reply({ content: 'Partida finalizada por administrador. Canais serão deletados em 10 segundos.' });
+                        setTimeout(async () => {
                             const category = interaction.channel.parent;
                             if (category) {
-                                for (const channel of category.children.cache.values()) {
-                                    await channel.delete().catch(() => null);
-                                }
+                                for (const channel of category.children.cache.values()) await channel.delete().catch(() => null);
                                 await category.delete().catch(() => null);
                             }
-                        } catch (e) {}
-                        queueManager.deleteMatch(interaction.channelId);
-                    }, 10000);
+                            queueManager.deleteMatch(interaction.channelId);
+                        }, 10000);
+                    } else {
+                        const row = new ActionRowBuilder().addComponents(
+                            new ButtonBuilder().setCustomId(`match_confirm_finish`).setLabel('Confirmar').setStyle(ButtonStyle.Success),
+                            new ButtonBuilder().setCustomId(`match_refuse_finish`).setLabel('Recusar').setStyle(ButtonStyle.Danger)
+                        );
+                        return interaction.reply({ content: `O capitão ${interaction.user} solicitou a finalização da partida. O outro capitão precisa confirmar.`, components: [row] });
+                    }
                 }
             }
 
-            // Sub-menus de seleção
+            // Sub-menus de seleção (Geram solicitação de confirmação)
             if (action === 'winner') {
-                const winner = interaction.values[0] === 'win1' ? 'Equipe 1' : 'Equipe 2';
-                await interaction.update({ content: `Vencedor definido: **${winner}**`, components: [] });
-                await interaction.channel.send({ content: `🏆 **${winner}** foi declarado vencedor pelo capitão ${interaction.user}!` });
+                const winnerVal = interaction.values[0];
+                const winnerName = winnerVal === 'win1' ? 'Equipe 1' : 'Equipe 2';
+                if (isAdmin) {
+                    await interaction.update({ content: `Vencedor definido: **${winnerName}**`, components: [] });
+                    return interaction.channel.send({ content: `🏆 **${winnerName}** foi declarado vencedor por um administrador!` });
+                }
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`match_confirm_win_${winnerVal}`).setLabel('Confirmar').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`match_refuse_win`).setLabel('Recusar').setStyle(ButtonStyle.Danger)
+                );
+                return interaction.update({ content: `O capitão ${interaction.user} definiu a vitória para **${winnerName}**. O outro capitão precisa confirmar.`, components: [row] });
             }
 
             if (action === 'mvp') {
                 const mvpId = interaction.values[0];
-                await interaction.update({ content: `MVP definido: <@${mvpId}>`, components: [] });
-                await interaction.channel.send({ content: `🌟 <@${mvpId}> foi eleito o MVP da partida!` });
+                if (isAdmin) {
+                    await interaction.update({ content: `MVP definido: <@${mvpId}>`, components: [] });
+                    return interaction.channel.send({ content: `🌟 <@${mvpId}> foi eleito o MVP por um administrador!` });
+                }
+                const row = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId(`match_confirm_mvp_${mvpId}`).setLabel('Confirmar').setStyle(ButtonStyle.Success),
+                    new ButtonBuilder().setCustomId(`match_refuse_mvp`).setLabel('Recusar').setStyle(ButtonStyle.Danger)
+                );
+                return interaction.update({ content: `O capitão ${interaction.user} indicou <@${mvpId}> como MVP. O outro capitão precisa confirmar.`, components: [row] });
             }
 
             return;
@@ -90,9 +144,7 @@ module.exports = {
 
         // Lógica de FILA/DESAFIO
         const queue = queueManager.getQueue(interaction.message.id);
-        if (!queue) {
-            return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true }).catch(() => null);
-        }
+        if (!queue) return interaction.reply({ content: 'Esta fila não está mais ativa.', ephemeral: true }).catch(() => null);
 
         const isOwner = interaction.user.id === queue.ownerId;
         const isAdmin = interaction.member.permissions.has(PermissionFlagsBits.Administrator);
@@ -249,10 +301,9 @@ module.exports = {
             await movePlayers(t1, v1);
             await movePlayers(t2, v2);
 
-            // NOVO LAYOUT DE PARTIDA (CONFORME PRINT)
             const matchEmbed = new EmbedBuilder()
                 .setTitle('Partida Criada')
-                .setDescription(`Seja bem-vindo(a) à partida **${queue.mode}**! Abaixo encontram-se os canais de voz, os capitães e seus jogadores. Para realizar qualquer ação desta partida, é necessário que o jogador seja um capitão de um dos dois times ou tenha permissão para gerenciar partidas.\n\n↪️ Somente os capitães conseguem usar esse painel; nenhum outro tem permissão para interagir.`)
+                .setDescription(`Seja bem-vindo(a) à partida **${queue.mode}**! Abaixo encontram-se os canais de voz, os capitães e seus jogadores.\n\n↪️ Somente os capitães conseguem usar esse painel; nenhum outro tem permissão para interagir.`)
                 .setColor('#2b2d31')
                 .addFields(
                     { name: '🔊 Canais de Voz', value: `🟦 **Equipe 1:** <#${v1.id}>\n🟥 **Equipe 2:** <#${v2.id}>`, inline: false },

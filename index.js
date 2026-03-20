@@ -47,20 +47,37 @@ client.on(Events.MessageCreate, async message => {
     // Detecção de ID e Senha em canais de partida
     const match = queueManager.getMatch(message.channel.id);
     if (match) {
-        // Regex para detectar padrão de ID e Senha (ex: 12345678 22)
-        const idPassRegex = /^(\d{5,10})\s+(\d{1,6})$/;
-        const matchResult = message.content.trim().match(idPassRegex);
+        const content = message.content.trim();
+        
+        // Se for apenas números e tiver entre 5 e 12 dígitos, tratamos como ID
+        if (/^\d{5,12}$/.test(content)) {
+            match.pendingId = content;
+            return; // Aguarda a senha
+        }
+
+        // Se tiver o ID pendente e a mensagem atual for curta (senha), ou se for o formato "ID SENHA"
+        const idPassRegex = /^(\d{5,12})\s+(\d{1,8})$/;
+        const matchResult = content.match(idPassRegex);
+
+        let finalId = null;
+        let finalPass = null;
 
         if (matchResult) {
-            const id = matchResult[1];
-            const pass = matchResult[2];
+            finalId = matchResult[1];
+            finalPass = matchResult[2];
+        } else if (match.pendingId && /^\d{1,8}$/.test(content)) {
+            finalId = match.pendingId;
+            finalPass = content;
+            match.pendingId = null; // Limpa após usar
+        }
 
+        if (finalId && finalPass) {
             const infoEmbed = new EmbedBuilder()
                 .setTitle('🎮 Sala Criada!')
                 .setDescription(`A sala foi criada com sucesso! Todos os jogadores foram mencionados abaixo. Vocês têm **3 minutos** para entrar na sala.`)
                 .addFields(
-                    { name: '🆔 ID da Sala', value: `\`${id}\``, inline: true },
-                    { name: '🔑 Senha', value: `\`${pass}\``, inline: true }
+                    { name: '🆔 ID da Sala', value: `\`${finalId}\``, inline: true },
+                    { name: '🔑 Senha', value: `\`${finalPass}\``, inline: true }
                 )
                 .setColor('#00ff00')
                 .setTimestamp();
