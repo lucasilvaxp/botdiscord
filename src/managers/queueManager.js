@@ -11,9 +11,9 @@ class QueueManager {
             mode,
             messageId,
             channelId,
-            players: [], // Array para manter a ordem de entrada
-            team1: [],   // Para desafios
-            team2: [],   // Para desafios
+            players: [],
+            team1: [],
+            team2: [],
             ownerId: null,
             maxPlayers: 0,
             teamSize: 0,
@@ -31,6 +31,7 @@ class QueueManager {
     }
 
     createMatch(matchData) {
+        // Armazenamos pelo ID do canal de texto para facilitar o acesso nas interações
         this.activeMatches.set(matchData.textChannelId, matchData);
     }
 
