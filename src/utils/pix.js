@@ -1,11 +1,25 @@
 const QRCode = require('qrcode');
 
 class Pix {
-    constructor(key, receiver, city, value = 0) {
+    constructor(key, receiver, city, value = 0, reference = '***') {
         this.key = key;
         this.receiver = receiver;
         this.city = city;
         this.value = value;
+        this.reference = reference;
+    }
+
+    static formatText(text) {
+        if (!text) return '';
+        return text.normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9\s]/g, "") // Remove caracteres especiais
+            .trim();
+    }
+
+    static formatField(id, value) {
+        const len = value.length.toString().padStart(2, '0');
+        return id + len + value;
     }
 
     static crc16(data) {
@@ -27,10 +41,7 @@ class Pix {
     }
 
     generatePayload() {
-        const formatField = (id, value) => {
-            const len = value.length.toString().padStart(2, '0');
-            return id + len + value;
-        };
+        const formatField = Pix.formatField;
 
         // Merchant Account Information (ID 26)
         const gui = formatField('00', 'br.gov.bcb.pix');
@@ -44,15 +55,17 @@ class Pix {
         payload += formatField('53', '986'); // Transaction Currency (BRL)
         
         if (this.value > 0) {
-            payload += formatField('54', this.value.toFixed(2)); // Transaction Amount
+            // Garante 2 casas decimais e ponto como separador
+            const amountStr = this.value.toFixed(2);
+            payload += formatField('54', amountStr); 
         }
         
         payload += formatField('58', 'BR'); // Country Code
-        payload += formatField('59', this.receiver.substring(0, 25)); // Merchant Name
-        payload += formatField('60', this.city.substring(0, 15)); // Merchant City
+        payload += formatField('59', Pix.formatText(this.receiver).substring(0, 25)); // Merchant Name
+        payload += formatField('60', Pix.formatText(this.city).substring(0, 15)); // Merchant City
         
-        // Additional Data Field Template (ID 62) - ID 05 is Reference Label
-        const reference = formatField('05', '***');
+        // Additional Data Field Template (ID 62)
+        const reference = formatField('05', Pix.formatText(this.reference).replace(/\s/g, '').substring(0, 25));
         payload += formatField('62', reference);
 
         payload += '6304'; // CRC16 Identifier
