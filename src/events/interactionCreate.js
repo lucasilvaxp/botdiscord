@@ -230,7 +230,7 @@ module.exports = {
         
         const gen = (s, e) => {
             let l = '';
-            for (let i = s; i < e; i++) l += queue.players[i] ? `🔴 <@${queue.players[i]}>\n` : `🟢 Livre\n`;
+            for (let i = s; i < e; i++) l += queue.players[i] ? `🔴 <@${queue.players[i]}>\n` : visual.emojis.free + ` Livre\n`;
             return l || '\u200b';
         };
 
@@ -250,7 +250,7 @@ module.exports = {
         const ts = queue.teamSize;
         const fmt = (t) => {
             let l = '';
-            for (let i = 0; i < ts; i++) l += t[i] ? `🔴 <@${t[i]}>\n` : `🟢 Livre\n`;
+            for (let i = 0; i < ts; i++) l += t[i] ? `🔴 <@${t[i]}>\n` : visual.emojis.free + ` Livre\n`;
             return l;
         };
         embed.setFields(
