@@ -11,6 +11,14 @@ module.exports = {
         thumbnail: 'https://imgur.com/KgzkZMb.png', // GIF ou Logo
         footerIcon: 'https://imgur.com/KgzkZMb'
     },
+    emojis: {
+        free: '<:Green_Verified:1331395840383647806>',
+        occupied: '<a:red_verificado:1308079030289043466>',
+        waiting: '<a:Yellow_SinoCDL:1212475707792293949>',
+        ready: '<:Green_Verified:1331395840383647806>',
+        crown: '👑',
+        mode: '🎮'
+    },
     botName: 'Arena BarcaBoa',
     systemName: 'Sistema de Sorteado'
 };
