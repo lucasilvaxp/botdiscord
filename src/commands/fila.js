@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const queueManager = require('../managers/queueManager');
+const visual = require('../utils/visualConfig');
 
 module.exports = {
     name: 'fila',
@@ -12,21 +13,23 @@ module.exports = {
             return message.reply('❌ **Erro:** Por favor, especifique um modo válido: `!fila 1v1`, `!fila 2v2`, `!fila 3v3` ou `!fila 4v4`.');
         }
 
-        // Mínimo de jogadores baseado no modo
         const minPlayers = parseInt(mode[0]) * 2;
         const halfMin = minPlayers / 2;
         
         const embed = new EmbedBuilder()
-            .setTitle(`${mode} | Fila Sorteada Criada!`)
-            .setDescription(`Seja Bem Vindo(a) à fila **Sorteada**! Aqui os times são formados aleatoriamente pelo sistema de sorteio. Caso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.\n\n💸 Após o sorteio, cada jogador deve combinar o valor da aposta com seu adversário direto no canal criado.`)
-            .setColor('#2b2d31')
+            .setAuthor({ name: visual.systemName, iconURL: visual.assets.logo })
+            .setTitle(`『 ${mode} | Fila Sorteada Criada! 』`)
+            .setDescription(`> 🎲 Os times serão formados de forma **100% aleatória** após o sorteio.\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n💸 Após o sorteio, cada jogador deve combinar o **valor da aposta** com seu adversário direto no canal criado.`)
+            .setThumbnail(visual.assets.thumbnail)
+            .setColor(visual.colors.sorteada)
             .addFields(
-                { name: `Participantes`, value: '🟢 Livre\n'.repeat(halfMin), inline: true },
+                { name: `『 👥 Participantes 』`, value: '🟢 Livre\n'.repeat(halfMin), inline: true },
                 { name: `\u200b`, value: '🟢 Livre\n'.repeat(halfMin), inline: true },
-                { name: '👑 Criador', value: `<@${message.author.id}>`, inline: true },
-                { name: '🎮 Modo', value: `\`${mode}\``, inline: true }
+                { name: `『 👑 Criador 』`, value: `<@${message.author.id}>`, inline: true },
+                { name: `『 🎮 Modo 』`, value: `\`${mode}\``, inline: true },
+                { name: `『 📊 Status 』`, value: `🟡 Aguardando jogadores (0/${minPlayers} mínimo)`, inline: false }
             )
-            .setFooter({ text: `Aguardando jogadores para iniciar... • Participantes (0/${minPlayers} mínimo)` })
+            .setFooter({ text: `Sistema de Filas • Powered by ${visual.botName}`, iconURL: visual.assets.footerIcon })
             .setTimestamp();
 
         const row = new ActionRowBuilder()
@@ -70,7 +73,7 @@ module.exports = {
         const queue = queueManager.getQueue(sentMessage.id);
         if (queue) {
             queue.ownerId = message.author.id;
-            queue.minPlayers = minPlayers; // Mudado de maxPlayers para minPlayers
+            queue.minPlayers = minPlayers;
             queue.isChallenge = false;
         }
     }
