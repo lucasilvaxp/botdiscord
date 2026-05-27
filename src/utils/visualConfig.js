@@ -7,10 +7,10 @@ module.exports = {
         default: '#2b2d31'
     },
     assets: {
-        logo: 'https://i.imgur.com/AfFp7pu.png', // Substituir pelo link real se disponível
-        thumbnail: 'https://i.imgur.com/AfFp7pu.png', // GIF ou Logo
-        footerIcon: 'https://i.imgur.com/AfFp7pu.png'
+        logo: 'https://imgur.com/KgzkZMb.png', // Substituir pelo link real se disponível
+        thumbnail: 'https://imgur.com/KgzkZMb.png', // GIF ou Logo
+        footerIcon: 'https://imgur.com/KgzkZMb'
     },
-    botName: 'Arena Matchmaking',
-    systemName: 'Sistema de Filas Ranked'
+    botName: 'Arena BarcaBoa',
+    systemName: 'Sistema de Sorteado'
 };
