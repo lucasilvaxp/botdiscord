@@ -12,10 +12,10 @@ module.exports = {
         footerIcon: 'https://imgur.com/KgzkZMb'
     },
     emojis: {
-        free: '<:Green_Verified:1331395840383647806>',
-        occupied: '<a:red_verificado:1308079030289043466>',
-        waiting: '<a:Yellow_SinoCDL:1212475707792293949>',
-        ready: '<:Green_Verified:1331395840383647806>',
+        free: '<:Green_Verifiedd:1509200611927658566>',
+        occupied: '<a:red_verificadoo:1509200609385910373>',
+        waiting: '<a:Yellow_SinoCDLl:1509200607305531502>',
+        ready: '<:Green_Verified:1509200611927658566>',
         crown: '👑',
         mode: '🎮'
     },
