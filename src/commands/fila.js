@@ -19,7 +19,7 @@ module.exports = {
         const embed = new EmbedBuilder()
             .setAuthor({ name: visual.systemName, iconURL: visual.assets.logo })
             .setTitle(`『 ${mode} | Fila Sorteada Criada! 』`)
-            .setDescription(`> 🎲 Seja Bem Vindo(a) à fila Sorteada! Aqui os times são formados aleatoriamente pelo sistema de sorteio. Caso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.💸 Após o sorteio, cada jogador deve combinar o valor da aposta com seu adversário direto no canal criado..\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n💸 Após o sorteio, cada jogador deve combinar o **valor da aposta** com seu adversário direto no canal criado.`)
+            .setDescription(`> 🎲 Seja Bem Vindo(a) à fila Sorteada! Aqui os times são formados aleatoriamente pelo sistema de sorteio. Caso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n💸 Após o sorteio, cada jogador deve combinar o **valor da aposta** com seu adversário direto no canal criado.`)
             .setThumbnail(visual.assets.thumbnail)
             .setColor(visual.colors.sorteada)
             .addFields(
