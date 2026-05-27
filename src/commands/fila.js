@@ -23,11 +23,11 @@ module.exports = {
             .setThumbnail(visual.assets.thumbnail)
             .setColor(visual.colors.sorteada)
             .addFields(
-                { name: `『 👥 Participantes 』`, value: '🟢 Livre\n'.repeat(halfMin), inline: true },
-                { name: `\u200b`, value: '🟢 Livre\n'.repeat(halfMin), inline: true },
-                { name: `『 👑 Criador 』`, value: `<@${message.author.id}>`, inline: true },
-                { name: `『 🎮 Modo 』`, value: `\`${mode}\``, inline: true },
-                { name: `『 📊 Status 』`, value: `🟡 Aguardando jogadores (0/${minPlayers} mínimo)`, inline: false }
+                { name: `『 👥 Participantes 』`, value: (visual.emojis.free + ' Livre\n').repeat(halfMin), inline: true },
+                { name: `\u200b`, value: (visual.emojis.free + ' Livre\n').repeat(halfMin), inline: true },
+                { name: `『 ${visual.emojis.crown} Criador 』`, value: `<@${message.author.id}>`, inline: true },
+                { name: `『 ${visual.emojis.mode} Modo 』`, value: `\`${mode}\``, inline: true },
+                { name: `『 📊 Status 』`, value: `${visual.emojis.waiting} Aguardando jogadores (0/${minPlayers} mínimo)`, inline: false }
             )
             .setFooter({ text: `Sistema de Filas • Powered by ${visual.botName}`, iconURL: visual.assets.footerIcon })
             .setTimestamp();
