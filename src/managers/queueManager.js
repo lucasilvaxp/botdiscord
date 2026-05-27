@@ -15,8 +15,8 @@ class QueueManager {
             team1: [],
             team2: [],
             ownerId: null,
-	            minPlayers: 0,
-	            teamSize: 0,
+            maxPlayers: 0,
+            teamSize: 0,
             isChallenge: false,
             createdAt: new Date()
         });

@@ -165,15 +165,9 @@ module.exports = {
                 }
                 if (action === 'start') {
                     if (!isOwner && !isAdmin) return interaction.reply({ content: 'Apenas o criador pode iniciar.', ephemeral: true });
-                    if (queue.players.length < queue.minPlayers) return interaction.reply({ content: `A fila precisa de pelo menos ${queue.minPlayers} jogadores para iniciar.`, ephemeral: true });
+                    if (queue.players.length < queue.maxPlayers) return interaction.reply({ content: `A fila precisa de pelo menos ${queue.maxPlayers} jogadores para iniciar.`, ephemeral: true });
                     await interaction.deferUpdate();
                     return this.startMatch(interaction, queue);
-                }
-                if (action === 'close') {
-                    if (!isOwner && !isAdmin) return interaction.reply({ content: 'Apenas o criador pode encerrar a fila.', ephemeral: true });
-                    queueManager.deleteQueue(interaction.message.id);
-                    await interaction.message.delete().catch(() => null);
-                    return;
                 }
             }
 
@@ -231,33 +225,20 @@ module.exports = {
     async updateQueueEmbed(interaction, queue) {
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
         const currentPlayers = queue.players.length;
-        const minPlayers = queue.minPlayers;
-        
-        // Exibir pelo menos o mínimo de slots, ou mais se houver mais jogadores
-        const totalSlots = Math.max(currentPlayers, minPlayers);
-        const half = Math.ceil(totalSlots / 2);
-        
+        const maxPlayers = queue.maxPlayers;
+        const totalToShow = Math.max(currentPlayers, maxPlayers);
+        const half = Math.ceil(totalToShow / 2);
         const gen = (s, e) => {
             let l = '';
-            for (let i = s; i < e; i++) {
-                if (queue.players[i]) {
-                    l += `🔴 <@${queue.players[i]}>\n`;
-                } else {
-                    l += `🟢 Livre\n`;
-                }
-            }
+            for (let i = s; i < e; i++) l += queue.players[i] ? `🔴 <@${queue.players[i]}>\n` : `🟢 Livre\n`;
             return l || '\u200b';
         };
-
         embed.setFields(
-            { name: `Participantes`, value: gen(0, half), inline: true },
-            { name: `\u200b`, value: gen(half, totalSlots), inline: true },
+            { name: `Participantes (${currentPlayers}/${maxPlayers})`, value: gen(0, half), inline: true },
+            { name: `\u200b`, value: gen(half, totalToShow), inline: true },
             { name: '👑 Criador', value: `<@${queue.ownerId}>`, inline: true },
             { name: '🎮 Modo', value: `\`${queue.mode}\``, inline: true }
         );
-
-        embed.setFooter({ text: `Aguardando jogadores para iniciar... • Participantes (${currentPlayers}/${minPlayers} mínimo)` });
-
         await interaction.message.edit({ embeds: [embed] }).catch(() => null);
     },
 
@@ -285,10 +266,10 @@ module.exports = {
             t1 = [...queue.team1]; t2 = [...queue.team2];
         } else {
             const shuffled = matchmaking.fisherYates(queue.players);
-            const active = shuffled.slice(0, queue.minPlayers);
-            reserves = shuffled.slice(queue.minPlayers);
-            t1 = active.slice(0, queue.minPlayers / 2);
-            t2 = active.slice(queue.minPlayers / 2);
+            const active = shuffled.slice(0, queue.maxPlayers);
+            reserves = shuffled.slice(queue.maxPlayers);
+            t1 = active.slice(0, queue.maxPlayers / 2);
+            t2 = active.slice(queue.maxPlayers / 2);
         }
 
         const matchId = matchmaking.generateMatchId();
@@ -343,10 +324,6 @@ module.exports = {
             );
 
             await textChannel.send({ content: [...t1, ...t2].map(id => `<@${id}>`).join(' '), embeds: [matchEmbed], components: [matchMenu] });
-            
-            if (reserves.length > 0) {
-                await interaction.channel.send({ content: `📢 **Partida Iniciada!** Os seguintes jogadores ficaram na reserva para a próxima: ${reserves.map(id => `<@${id}>`).join(', ')}` });
-            }
             
             queueManager.createMatch({
                 matchId,
