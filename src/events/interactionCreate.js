@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, PermissionFlagsBits } = require('discord.js');
 const queueManager = require('../managers/queueManager');
 const matchmaking = require('../utils/matchmaking');
+const visual = require('../utils/visualConfig');
 
 module.exports = {
     name: 'interactionCreate',
@@ -23,16 +24,14 @@ module.exports = {
                 return interaction.reply({ content: 'Apenas os capitães ou administradores podem usar este painel.', ephemeral: true });
             }
 
-            // Lógica de CONFIRMAÇÃO (Botões)
             if (action === 'confirm' || action === 'refuse') {
-                const actionType = customIdParts[2]; // win, mvp, finish
-                const targetId = customIdParts[3]; // id do vencedor ou mvp
+                const actionType = customIdParts[2];
+                const targetId = customIdParts[3];
                 
                 if (action === 'refuse') {
                     return interaction.update({ content: `❌ A ação foi recusada pelo capitão ${interaction.user}.`, components: [] });
                 }
 
-                // Confirmar
                 const otherCaptain = interaction.user.id === match.team1[0] ? match.team2[0] : match.team1[0];
                 if (interaction.user.id !== otherCaptain && !isAdmin) {
                     return interaction.reply({ content: 'Aguardando a confirmação do outro capitão.', ephemeral: true });
@@ -59,10 +58,8 @@ module.exports = {
                 return;
             }
 
-            // Lógica do MENU
             if (action === 'menu') {
                 const value = interaction.values[0];
-                
                 if (value === 'win') {
                     const winMenu = new ActionRowBuilder().addComponents(
                         new StringSelectMenuBuilder()
@@ -75,7 +72,6 @@ module.exports = {
                     );
                     return interaction.reply({ content: 'Selecione quem venceu a partida:', components: [winMenu], ephemeral: true });
                 }
-
                 if (value === 'mvp') {
                     const allPlayers = [...match.team1, ...match.team2];
                     const mvpMenu = new ActionRowBuilder().addComponents(
@@ -89,7 +85,6 @@ module.exports = {
                     );
                     return interaction.reply({ content: 'Selecione o MVP:', components: [mvpMenu], ephemeral: true });
                 }
-
                 if (value === 'finish') {
                     if (isAdmin) {
                         await interaction.reply({ content: 'Partida finalizada por administrador. Canais serão deletados em 10 segundos.' });
@@ -111,7 +106,6 @@ module.exports = {
                 }
             }
 
-            // Sub-menus de seleção (Geram solicitação de confirmação)
             if (action === 'winner') {
                 const winnerVal = interaction.values[0];
                 const winnerName = winnerVal === 'win1' ? 'Equipe 1' : 'Equipe 2';
@@ -138,7 +132,6 @@ module.exports = {
                 );
                 return interaction.update({ content: `O capitão ${interaction.user} indicou <@${mvpId}> como MVP. O outro capitão precisa confirmar.`, components: [row] });
             }
-
             return;
         }
 
@@ -232,31 +225,22 @@ module.exports = {
         const embed = EmbedBuilder.from(interaction.message.embeds[0]);
         const currentPlayers = queue.players.length;
         const minPlayers = queue.minPlayers;
-        
-        // Exibir pelo menos o mínimo de slots, ou mais se houver mais jogadores
         const totalSlots = Math.max(currentPlayers, minPlayers);
         const half = Math.ceil(totalSlots / 2);
         
         const gen = (s, e) => {
             let l = '';
-            for (let i = s; i < e; i++) {
-                if (queue.players[i]) {
-                    l += `🔴 <@${queue.players[i]}>\n`;
-                } else {
-                    l += `🟢 Livre\n`;
-                }
-            }
+            for (let i = s; i < e; i++) l += queue.players[i] ? `🔴 <@${queue.players[i]}>\n` : visual.emojis.free + ` Livre\n`;
             return l || '\u200b';
         };
 
         embed.setFields(
-            { name: `Participantes`, value: gen(0, half), inline: true },
+            { name: `『 👥 Participantes 』`, value: gen(0, half), inline: true },
             { name: `\u200b`, value: gen(half, totalSlots), inline: true },
-            { name: '👑 Criador', value: `<@${queue.ownerId}>`, inline: true },
-            { name: '🎮 Modo', value: `\`${queue.mode}\``, inline: true }
+            { name: `『 👑 Criador 』`, value: `<@${queue.ownerId}>`, inline: true },
+            { name: `『 🎮 Modo 』`, value: `\`${queue.mode}\``, inline: true },
+            { name: `『 📊 Status 』`, value: currentPlayers >= minPlayers ? `🟢 Pronto para iniciar! (${currentPlayers}/${minPlayers})` : `🟡 Aguardando jogadores (${currentPlayers}/${minPlayers} mínimo)`, inline: false }
         );
-
-        embed.setFooter({ text: `Aguardando jogadores para iniciar... • Participantes (${currentPlayers}/${minPlayers} mínimo)` });
 
         await interaction.message.edit({ embeds: [embed] }).catch(() => null);
     },
@@ -266,12 +250,14 @@ module.exports = {
         const ts = queue.teamSize;
         const fmt = (t) => {
             let l = '';
-            for (let i = 0; i < ts; i++) l += t[i] ? `🔴 <@${t[i]}>\n` : `🟢 Livre\n`;
+            for (let i = 0; i < ts; i++) l += t[i] ? `🔴 <@${t[i]}>\n` : visual.emojis.free + ` Livre\n`;
             return l;
         };
         embed.setFields(
-            { name: `Equipe 1 (${queue.team1.length}/${ts})`, value: fmt(queue.team1), inline: true },
-            { name: `Equipe 2 (${queue.team2.length}/${ts})`, value: fmt(queue.team2), inline: true }
+            { name: `『 🟦 Equipe 1 』`, value: fmt(queue.team1), inline: true },
+            { name: `『 🟥 Equipe 2 』`, value: fmt(queue.team2), inline: true },
+            { name: `『 👑 Criador 』`, value: `<@${queue.ownerId}>`, inline: true },
+            { name: `『 📊 Status 』`, value: (queue.team1.length === ts && queue.team2.length === ts) ? `🟢 Pronto para iniciar!` : `🟡 Aguardando jogadores...`, inline: false }
         );
         const row = ActionRowBuilder.from(interaction.message.components[1]);
         row.components[0].setLabel(`Entrar [${queue.team1.length}/${ts}]`);
@@ -321,14 +307,18 @@ module.exports = {
             await movePlayers(t2, v2);
 
             const matchEmbed = new EmbedBuilder()
-                .setTitle('Partida Criada')
-                .setDescription(`Seja bem-vindo(a) à partida **${queue.mode}**! Abaixo encontram-se os canais de voz, os capitães e seus jogadores.\n\n↪️ Somente os capitães conseguem usar esse painel; nenhum outro tem permissão para interagir.`)
-                .setColor('#2b2d31')
+                .setAuthor({ name: visual.systemName, iconURL: visual.assets.logo })
+                .setTitle(`『 ${queue.mode} | Partida Iniciada! 』`)
+                .setDescription(`> 🎲 Seja bem-vindo(a) à partida! Abaixo encontram-se os canais de voz, os capitães e seus jogadores.\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\n↪️ Somente os capitães conseguem usar esse painel; nenhum outro tem permissão para interagir.`)
+                .setThumbnail(visual.assets.thumbnail)
+                .setColor(visual.colors.started)
                 .addFields(
-                    { name: '🔊 Canais de Voz', value: `🟦 **Equipe 1:** <#${v1.id}>\n🟥 **Equipe 2:** <#${v2.id}>`, inline: false },
-                    { name: '🟦 Equipe 1', value: `👤 **Capitão:** <@${t1[0]}>\n👥 **Jogador:** ${t1.slice(1).map(id => `<@${id}>`).join(' | ') || 'Nenhum'}`, inline: true },
-                    { name: '🟥 Equipe 2', value: `👤 **Capitão:** <@${t2[0]}>\n👥 **Jogador:** ${t2.slice(1).map(id => `<@${id}>`).join(' | ') || 'Nenhum'}`, inline: true }
-                );
+                    { name: '『 🔊 Canais de Voz 』', value: `🟦 **Equipe 1:** <#${v1.id}>\n🟥 **Equipe 2:** <#${v2.id}>`, inline: false },
+                    { name: '『 🟦 Equipe 1 』', value: `👤 **Capitão:** <@${t1[0]}>\n👥 **Jogador:** ${t1.slice(1).map(id => `<@${id}>`).join(' | ') || 'Nenhum'}`, inline: true },
+                    { name: '『 🟥 Equipe 2 』', value: `👤 **Capitão:** <@${t2[0]}>\n👥 **Jogador:** ${t2.slice(1).map(id => `<@${id}>`).join(' | ') || 'Nenhum'}`, inline: true }
+                )
+                .setFooter({ text: `Sistema de Filas • Powered by ${visual.botName}`, iconURL: visual.assets.footerIcon })
+                .setTimestamp();
 
             const matchMenu = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
@@ -358,7 +348,11 @@ module.exports = {
                 players: [...t1, ...t2]
             });
 
-            const disabledEmbed = EmbedBuilder.from(interaction.message.embeds[0]).setColor('#ff0000').setFooter({ text: 'Partida Iniciada • Mensagem Desativada' });
+            const disabledEmbed = EmbedBuilder.from(interaction.message.embeds[0])
+                .setColor(visual.colors.finished)
+                .setTitle(`『 ${queue.mode} | Fila Encerrada! 』`)
+                .setFooter({ text: `Fila Encerrada • Powered by ${visual.botName}`, iconURL: visual.assets.footerIcon });
+            
             const disabledComponents = interaction.message.components.map(row => {
                 const newRow = ActionRowBuilder.from(row);
                 newRow.components.forEach(c => c.setDisabled(true));

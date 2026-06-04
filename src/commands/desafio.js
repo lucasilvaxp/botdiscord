@@ -1,48 +1,34 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
 const queueManager = require('../managers/queueManager');
+const visual = require('../utils/visualConfig');
 
 module.exports = {
     name: 'desafio',
-    description: 'Cria um desafio com times formados',
+    description: 'Abre um desafio de times formados',
     async execute(message, args) {
-        const mode = args[0] || '4v4';
+        const mode = args[0] || '2v2';
         const validModes = ['1v1', '2v2', '3v3', '4v4'];
 
         if (!validModes.includes(mode)) {
-            return message.reply('Por favor, especifique um modo válido: !desafio 1v1, !desafio 2v2, !desafio 3v3 ou !desafio 4v4.');
+            return message.reply('❌ **Erro:** Por favor, especifique um modo válido: `!desafio 1v1`, `!desafio 2v2`, `!desafio 3v3` ou `!desafio 4v4`.');
         }
 
-        const maxPlayers = parseInt(mode[0]) * 2;
-        const teamSize = maxPlayers / 2;
-
+        const teamSize = parseInt(mode[0]);
+        
         const embed = new EmbedBuilder()
-            .setTitle(`${mode} | Fila Desafio Criada!`)
-            .setDescription('Seja Bem Vindo(a) a fila **Desafio**! Aqui todos os times são formados. Caso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.')
-            .setColor('#2b2d31')
+            .setAuthor({ name: visual.systemName, iconURL: visual.assets.logo })
+            .setTitle(`『 ${mode} | Fila Desafio Criada! 』`)
+            .setDescription(`> ⚔️ Seja Bem Vindo(a) à fila **Desafio**! Aqui todos os times são formados.\n\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n\nCaso deseje participar, utilize os botões abaixo para fazer as ações disponíveis.`)
+            .setThumbnail(visual.assets.thumbnail)
+            .setColor(visual.colors.desafio)
             .addFields(
-                { name: `Equipe 1 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
-                { name: `Equipe 2 (0/${teamSize})`, value: '🟢 Livre\n'.repeat(teamSize), inline: true }
+                { name: `『 🟦 Equipe 1 』`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
+                { name: `『 🟥 Equipe 2 』`, value: '🟢 Livre\n'.repeat(teamSize), inline: true },
+                { name: `『 👑 Criador 』`, value: `<@${message.author.id}>`, inline: true },
+                { name: `『 📊 Status 』`, value: `🟡 Aguardando jogadores...`, inline: false }
             )
-            .setFooter({ text: `Aguardando jogadores... • Hoje às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` });
-
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`challenge_join_1_${mode}`)
-                    .setLabel(`Entrar [0/${teamSize}]`)
-                    .setEmoji('✅')
-                    .setStyle(ButtonStyle.Success),
-                new ButtonBuilder()
-                    .setCustomId(`challenge_join_2_${mode}`)
-                    .setLabel(`Entrar [0/${teamSize}]`)
-                    .setEmoji('✅')
-                    .setStyle(ButtonStyle.Danger),
-                new ButtonBuilder()
-                    .setCustomId(`challenge_leave_${mode}`)
-                    .setLabel('Sair')
-                    .setEmoji('❌')
-                    .setStyle(ButtonStyle.Secondary)
-            );
+            .setFooter({ text: `Sistema de Filas • Powered by ${visual.botName}`, iconURL: visual.assets.footerIcon })
+            .setTimestamp();
 
         const menuRow = new ActionRowBuilder()
             .addComponents(
@@ -50,24 +36,40 @@ module.exports = {
                     .setCustomId(`challenge_menu_${mode}`)
                     .setPlaceholder('Opções do Desafio')
                     .addOptions([
-                        { label: 'Iniciar Partida', value: 'start', emoji: '▶️' },
-                        { label: 'Expulsar', value: 'kick', emoji: '👢' },
-                        { label: 'Encerrar', value: 'cancel', emoji: '🏁' }
+                        { label: 'Iniciar Partida', value: 'start', emoji: '🎮' },
+                        { label: 'Cancelar Desafio', value: 'cancel', emoji: '❌' }
                     ])
             );
 
-        // Menu ACIMA dos botões
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId(`challenge_join_1_${mode}`)
+                    .setLabel(`Entrar [0/${teamSize}]`)
+                    .setEmoji('🟦')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`challenge_join_2_${mode}`)
+                    .setLabel(`Entrar [0/${teamSize}]`)
+                    .setEmoji('🟥')
+                    .setStyle(ButtonStyle.Success),
+                new ButtonBuilder()
+                    .setCustomId(`challenge_leave_${mode}`)
+                    .setLabel('Sair')
+                    .setEmoji('❌')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
         const sentMessage = await message.channel.send({ embeds: [embed], components: [menuRow, row] });
         
         queueManager.createQueue(mode, sentMessage.id, message.channel.id);
-        const challenge = queueManager.getQueue(sentMessage.id);
-        if (challenge) {
-            challenge.ownerId = message.author.id;
-            challenge.isChallenge = true;
-            challenge.team1 = [];
-            challenge.team2 = [];
-            challenge.maxPlayers = maxPlayers;
-            challenge.teamSize = teamSize;
+        const queue = queueManager.getQueue(sentMessage.id);
+        if (queue) {
+            queue.ownerId = message.author.id;
+            queue.teamSize = teamSize;
+            queue.isChallenge = true;
+            queue.team1 = [];
+            queue.team2 = [];
         }
     }
 };
